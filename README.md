@@ -84,22 +84,27 @@ Die App ist so gebaut, dass **ein einziger Dienst** (Node-Server) sowohl die API
 auch die Website ausliefert – kein separates Hosting für Frontend/Backend, keine
 CORS-Konfiguration nötig.
 
-### Variante A: Render.com (empfohlen, per Blueprint)
+### Variante A: Render.com (empfohlen, per Blueprint) – aktuell auf den kostenlosen Plan eingestellt
 
 1. Bei [render.com](https://render.com) registrieren und das GitHub-Repo verbinden.
 2. „New +“ → „Blueprint“ → dieses Repo auswählen. Render liest automatisch die Datei
-   `render.yaml` im Root und richtet den Dienst inkl. persistentem Speicher für die
-   SQLite-Datenbank ein.
+   `render.yaml` im Root und richtet den Dienst ein (aktuell: kostenloser Plan, kein
+   persistenter Speicher).
 3. Deploy bestätigen. `JWT_SECRET` wird automatisch generiert.
 4. Nach ein paar Minuten ist die Website unter der von Render vergebenen `*.onrender.com`-
-   Adresse erreichbar. Eine eigene Domain lässt sich später in den Render-Einstellungen
-   verbinden.
+   Adresse erreichbar.
 
-**Kostenhinweis:** Persistenter Speicher (damit die Datenbank Neustarts/Deploys
-übersteht) erfordert Renders „Starter“-Plan (aktuell ca. 7 $/Monat). Ohne persistenten
-Speicher (kostenloser Plan) würden alle Daten bei jedem Neustart des Servers verloren
-gehen – für ein erstes Ausprobieren reicht das, für den echten Betrieb mit dir und
-deinen Freunden nicht.
+**Zwei Dinge zum kostenlosen Plan, die für ein erstes Testen okay sind, aber gut zu
+wissen:**
+- **Keine dauerhafte Datenspeicherung:** Ohne bezahlten persistenten Speicher können
+  deine Einträge verloren gehen, wenn der Server neu startet (z. B. nach einem neuen
+  Deploy). Für's Ausprobieren durch dich allein unproblematisch – sobald auch Freunde
+  mitmachen sollen und die Daten bleiben sollen, auf Renders „Starter“-Plan (~7 $/Monat)
+  wechseln und in `render.yaml` den Block `disk:` wieder ergänzen sowie
+  `DATABASE_PATH=/data/data.sqlite` setzen (war vorher schon einmal so konfiguriert).
+- **„Einschlafen“ nach Inaktivität:** Kostenlose Render-Dienste pausieren nach ca. 15
+  Minuten ohne Zugriff. Der nächste Aufruf dauert dann ca. 30–60 Sekunden (Server startet
+  neu), danach läuft alles normal.
 
 ### Variante B: Fly.io, Railway, eigener Server – per Docker
 
