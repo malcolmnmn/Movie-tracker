@@ -1,0 +1,11 @@
+{
+  "name": "movie-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm ci --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server",
+    "start": "node server/src/index.js",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client"
+  }
+}

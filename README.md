@@ -55,15 +55,15 @@ Die App im Browser unter `http://localhost:5173` öffnen. Anfragen an `/api/*` w
 Dev-Modus automatisch an das Backend auf Port 4000 weitergeleitet (siehe
 `client/vite.config.ts`).
 
-### Produktion
+### Produktion (lokal testen)
+
+Im Produktivmodus liefert der Server API **und** das gebaute Frontend über einen
+einzigen Prozess aus (kein separater Webserver nötig):
 
 ```bash
-cd client && npm run build   # erzeugt client/dist
-cd server && npm start       # API-Server
+npm run build   # baut das Frontend und installiert die Server-Abhängigkeiten
+npm start        # startet auf http://localhost:4000 (API + Website)
 ```
-
-Für den produktiven Betrieb `client/dist` z. B. per Nginx/Reverse-Proxy vor die API
-schalten oder die API zusätzlich statische Dateien ausliefern lassen.
 
 ## Datenspeicherung
 
@@ -77,3 +77,60 @@ Konto an.
 Die automatische Kurzbeschreibung wird live von Wikipedia geladen (deutsch, mit
 Rückfalloption auf die englische Wikipedia). Es wird kein API-Key benötigt. Findet sich
 kein Artikel, wird ein Platzhaltertext angezeigt.
+
+## Als Website live schalten (Deployment)
+
+Die App ist so gebaut, dass **ein einziger Dienst** (Node-Server) sowohl die API als
+auch die Website ausliefert – kein separates Hosting für Frontend/Backend, keine
+CORS-Konfiguration nötig.
+
+### Variante A: Render.com (empfohlen, per Blueprint)
+
+1. Bei [render.com](https://render.com) registrieren und das GitHub-Repo verbinden.
+2. „New +“ → „Blueprint“ → dieses Repo auswählen. Render liest automatisch die Datei
+   `render.yaml` im Root und richtet den Dienst inkl. persistentem Speicher für die
+   SQLite-Datenbank ein.
+3. Deploy bestätigen. `JWT_SECRET` wird automatisch generiert.
+4. Nach ein paar Minuten ist die Website unter der von Render vergebenen `*.onrender.com`-
+   Adresse erreichbar. Eine eigene Domain lässt sich später in den Render-Einstellungen
+   verbinden.
+
+**Kostenhinweis:** Persistenter Speicher (damit die Datenbank Neustarts/Deploys
+übersteht) erfordert Renders „Starter“-Plan (aktuell ca. 7 $/Monat). Ohne persistenten
+Speicher (kostenloser Plan) würden alle Daten bei jedem Neustart des Servers verloren
+gehen – für ein erstes Ausprobieren reicht das, für den echten Betrieb mit dir und
+deinen Freunden nicht.
+
+### Variante B: Fly.io, Railway, eigener Server – per Docker
+
+Das mitgelieferte `Dockerfile` im Root baut Frontend und Backend in einem Image und
+funktioniert auf jedem Docker-fähigen Hoster:
+
+```bash
+docker build -t movie-tracker .
+docker run -p 4000:4000 \
+  -e JWT_SECRET=ein-langes-zufaelliges-geheimnis \
+  -e DATABASE_PATH=/data/data.sqlite \
+  -v movie-tracker-data:/data \
+  movie-tracker
+```
+
+Bei Fly.io/Railway das Repo verbinden (beide erkennen das `Dockerfile` automatisch),
+ein persistentes Volume auf `/data` mounten und `DATABASE_PATH=/data/data.sqlite` sowie
+ein eigenes `JWT_SECRET` als Umgebungsvariable setzen.
+
+### Wichtige Umgebungsvariablen
+
+| Variable        | Bedeutung                                                        | Pflicht |
+|-----------------|-------------------------------------------------------------------|---------|
+| `JWT_SECRET`    | Geheimschlüssel zum Signieren der Login-Sitzungen                  | ja      |
+| `PORT`          | Port, auf dem der Server lauscht (viele Hoster setzen ihn selbst)  | nein    |
+| `DATABASE_PATH` | Pfad zur SQLite-Datei (auf persistentem Speicher ablegen!)         | nein    |
+| `CORS_ORIGIN`   | Kommagetrennte Liste erlaubter Origins (nur bei getrenntem Hosting)| nein    |
+
+## Später: iOS-App
+
+Sobald die Website läuft, lässt sie sich mit [Capacitor](https://capacitorjs.com/) fast
+unverändert in eine native iOS-App verpacken (App-Store-fähig) – der bestehende
+React-Code wird dabei größtenteils wiederverwendet. Alternativ funktioniert die Website
+schon jetzt als installierbare PWA auf dem iPhone-Homescreen, ganz ohne App-Store-Review.
