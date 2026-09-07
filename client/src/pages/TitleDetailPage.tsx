@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, RATING_FIELDS, type Title } from '../api/client';
 
+interface CustomRow {
+  id: number | null;
+  label: string;
+  score: number;
+}
+
 export function TitleDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -10,17 +16,12 @@ export function TitleDetailPage() {
   const [infoLoading, setInfoLoading] = useState(false);
   const [savingRatings, setSavingRatings] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [customRows, setCustomRows] = useState<CustomRow[]>([]);
 
   async function load() {
     setLoading(true);
     const res = await api.getTitle(Number(id));
-    setTitle(res.title);
-    const initial: Record<string, number> = {};
-    for (const field of RATING_FIELDS) {
-      const value = res.title[field.key];
-      initial[field.key] = typeof value === 'number' ? value : 5;
-    }
-    setRatings(initial);
+    applyTitle(res.title);
     setLoading(false);
 
     if (!res.title.ai_description) {
@@ -31,17 +32,58 @@ export function TitleDetailPage() {
     }
   }
 
+  function applyTitle(t: Title) {
+    setTitle(t);
+    const initial: Record<string, number> = {};
+    for (const field of RATING_FIELDS) {
+      const value = t[field.key];
+      initial[field.key] = typeof value === 'number' ? value : 5;
+    }
+    setRatings(initial);
+    setCustomRows(t.custom_ratings.map((c) => ({ id: c.id, label: c.label, score: c.score })));
+  }
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  function addCustomRow() {
+    setCustomRows((rows) => [...rows, { id: null, label: '', score: 5 }]);
+  }
+
+  function updateCustomRow(index: number, patch: Partial<CustomRow>) {
+    setCustomRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  async function removeCustomRow(index: number) {
+    const row = customRows[index];
+    if (row.id !== null && title) {
+      if (!confirm(`Eigene Kategorie "${row.label}" wirklich löschen?`)) return;
+      const res = await api.deleteCustomRating(title.id, row.id);
+      applyTitle(res.title);
+      return;
+    }
+    setCustomRows((rows) => rows.filter((_, i) => i !== index));
+  }
+
   async function saveRatings() {
     if (!title) return;
     setSavingRatings(true);
-    const res = await api.updateTitle(title.id, ratings);
-    setTitle(res.title);
-    setSavingRatings(false);
+    try {
+      await api.updateTitle(title.id, ratings);
+      for (const row of customRows) {
+        if (row.id === null) {
+          if (row.label.trim()) await api.addCustomRating(title.id, row.label.trim(), row.score);
+        } else {
+          await api.updateCustomRating(title.id, row.id, { label: row.label.trim(), score: row.score });
+        }
+      }
+      const fresh = await api.getTitle(title.id);
+      applyTitle(fresh.title);
+    } finally {
+      setSavingRatings(false);
+    }
   }
 
   async function toggleStatus() {
@@ -83,7 +125,9 @@ export function TitleDetailPage() {
               <div className="text-4xl font-bold text-yellow-400">
                 {title.average_rating.toFixed(1)}
               </div>
-              <div className="text-xs text-gray-400">Durchschnitt</div>
+              <div className="text-xs text-gray-400">
+                Durchschnitt ({title.rating_count} Kategorien)
+              </div>
             </div>
           )}
         </div>
@@ -138,13 +182,57 @@ export function TitleDetailPage() {
             </div>
           ))}
         </div>
+
+        {customRows.length > 0 && (
+          <div className="space-y-3 mt-5 pt-5 border-t border-gray-700">
+            {customRows.map((row, index) => (
+              <div
+                key={row.id ?? `new-${index}`}
+                className="flex items-center gap-4 border-l-4 border-violet-400 bg-violet-400/5 rounded-r-lg pl-3 py-1.5"
+              >
+                <input
+                  value={row.label}
+                  onChange={(e) => updateCustomRow(index, { label: e.target.value })}
+                  placeholder="Eigene Kategorie…"
+                  className="w-48 shrink-0 bg-gray-900 border border-violet-400/40 rounded-lg px-2 py-1 text-sm text-gray-100"
+                />
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={row.score}
+                  onChange={(e) => updateCustomRow(index, { score: Number(e.target.value) })}
+                  className="rating-slider flex-1 accent-violet-400"
+                />
+                <span className="w-8 text-right font-semibold text-gray-100">{row.score}</span>
+                <button
+                  onClick={() => removeCustomRow(index)}
+                  className="text-violet-300 hover:text-violet-100 text-sm px-1"
+                  title="Kategorie entfernen"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <button
-          onClick={saveRatings}
-          disabled={savingRatings}
-          className="mt-5 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-gray-900 font-semibold rounded-lg px-4 py-2 text-sm"
+          onClick={addCustomRow}
+          className="mt-4 text-sm border border-violet-400/50 text-violet-300 hover:bg-violet-400/10 rounded-lg px-3 py-1.5"
         >
-          {savingRatings ? 'Speichert…' : 'Bewertung speichern'}
+          + Eigene Kategorie hinzufügen
         </button>
+
+        <div>
+          <button
+            onClick={saveRatings}
+            disabled={savingRatings}
+            className="mt-5 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-gray-900 font-semibold rounded-lg px-4 py-2 text-sm"
+          >
+            {savingRatings ? 'Speichert…' : 'Bewertung speichern'}
+          </button>
+        </div>
       </section>
 
       <div className="flex gap-3">

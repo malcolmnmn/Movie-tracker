@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { TitleType } from '../api/client';
+import { useRef, useState } from 'react';
+import { api, type TitleType } from '../api/client';
 
 interface Props {
   onSubmit: (data: { name: string; type: TitleType; genre: string }) => Promise<void>;
@@ -22,8 +22,32 @@ export function AddTitleForm({ onSubmit }: Props) {
   const [name, setName] = useState('');
   const [type, setType] = useState<TitleType>('movie');
   const [genre, setGenre] = useState('');
+  const [genreLoading, setGenreLoading] = useState(false);
+  const [genreAutoFilled, setGenreAutoFilled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lookupRequestId = useRef(0);
+
+  // Schlägt beim Verlassen des Namensfelds automatisch ein Genre vor (über eine
+  // Filmdatenbank im Internet), falls das Genre-Feld noch leer ist. Bleibt frei
+  // überschreibbar.
+  async function handleNameBlur() {
+    if (!name.trim() || genre.trim()) return;
+    const requestId = ++lookupRequestId.current;
+    setGenreLoading(true);
+    try {
+      const res = await api.lookupGenre(name.trim());
+      if (requestId !== lookupRequestId.current) return; // Name hat sich inzwischen geändert
+      if (res.genre && !genre.trim()) {
+        setGenre(res.genre);
+        setGenreAutoFilled(true);
+      }
+    } catch {
+      // Kein Vorschlag verfügbar – Nutzer trägt Genre einfach manuell ein.
+    } finally {
+      if (requestId === lookupRequestId.current) setGenreLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +61,7 @@ export function AddTitleForm({ onSubmit }: Props) {
       await onSubmit({ name: name.trim(), type, genre: genre.trim() });
       setName('');
       setGenre('');
+      setGenreAutoFilled(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Hinzufügen.');
     } finally {
@@ -54,6 +79,7 @@ export function AddTitleForm({ onSubmit }: Props) {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onBlur={handleNameBlur}
           placeholder="z. B. Inception"
           className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 w-56"
         />
@@ -70,10 +96,19 @@ export function AddTitleForm({ onSubmit }: Props) {
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-400">Genre / Kategorie</label>
+        <label className="text-xs text-gray-400">
+          Genre / Kategorie
+          {genreLoading && <span className="text-gray-500"> · wird vorgeschlagen…</span>}
+          {genreAutoFilled && !genreLoading && (
+            <span className="text-yellow-400"> · automatisch vorgeschlagen</span>
+          )}
+        </label>
         <input
           value={genre}
-          onChange={(e) => setGenre(e.target.value)}
+          onChange={(e) => {
+            setGenre(e.target.value);
+            setGenreAutoFilled(false);
+          }}
           placeholder="z. B. Sci-Fi"
           list="genre-suggestions"
           className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 w-44"

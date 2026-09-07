@@ -8,16 +8,22 @@ Listen und Bewertungen anderer einsehen kannst.
 
 - **Task-Leiste (Navigation)** mit den Bereichen *Watchlist*, *Geschaut* und *Freunde*.
 - **Watchlist**: Filme/Serien nach Name, Typ (Film/Serie) und Genre hinzufügen; per Klick
-  als "geschaut" markieren.
+  als "geschaut" markieren. Das Genre wird automatisch vorgeschlagen (Wikidata), sobald
+  du das Namensfeld verlässt – frei überschreibbar.
 - **Geschaut**: Titel nach Genre gruppiert, innerhalb jeder Gruppe von der besten zur
   schlechtesten Bewertung sortiert.
-- **Bewertung**: Auf der Detailseite eines Titels lässt sich jede Kategorie
-  (Schauspielleistung, Story, Spannung/Interesse, Länge/Pacing, Bildgestaltung) von
-  1–10 bewerten. Der Durchschnitt wird automatisch berechnet und in der Liste angezeigt.
+- **Bewertung**: Auf der Detailseite eines Titels lassen sich 10 feste Kategorien
+  (Schauspielleistung, Story, Spannung/Interesse, Länge/Pacing, Bildgestaltung,
+  Sound/Musik, Regie, Charakterentwicklung, Originalität, Emotionale Wirkung) von 1–10
+  bewerten – plus beliebig viele **eigene Kategorien** (Button "+ Eigene Kategorie
+  hinzufügen"), die violett hervorgehoben werden, damit auch Freunde erkennen, welche
+  Kategorien selbst hinzugefügt wurden. Der Durchschnitt über alle ausgefüllten
+  Kategorien wird automatisch berechnet und in der Liste angezeigt.
 - **Kurzbeschreibung**: Auf der Detailseite wird automatisch eine kurze
   Wikipedia-Zusammenfassung zum Titel geladen (ähnlich der Infobox einer Google-Suche).
 - **Freunde**: Freunde per Benutzername hinzufügen und deren Watchlist, geschaute Titel
-  und Bewertungen einsehen.
+  und Bewertungen (inkl. deren eigener Kategorien) einsehen.
+- **Installierbar** als App auf dem Homescreen (iOS/Android) – kein App-Store nötig.
 
 ## Projektstruktur
 
@@ -84,27 +90,18 @@ Die App ist so gebaut, dass **ein einziger Dienst** (Node-Server) sowohl die API
 auch die Website ausliefert – kein separates Hosting für Frontend/Backend, keine
 CORS-Konfiguration nötig.
 
-### Variante A: Render.com (empfohlen, per Blueprint) – aktuell auf den kostenlosen Plan eingestellt
+### Variante A: Render.com (empfohlen, per Blueprint) – mit dauerhaftem Speicher
 
 1. Bei [render.com](https://render.com) registrieren und das GitHub-Repo verbinden.
 2. „New +“ → „Blueprint“ → dieses Repo auswählen. Render liest automatisch die Datei
-   `render.yaml` im Root und richtet den Dienst ein (aktuell: kostenloser Plan, kein
-   persistenter Speicher).
+   `render.yaml` im Root und richtet den Dienst inkl. persistentem Speicher (1 GB Disk)
+   für die SQLite-Datenbank ein, damit deine Einträge dauerhaft erhalten bleiben.
 3. Deploy bestätigen. `JWT_SECRET` wird automatisch generiert.
 4. Nach ein paar Minuten ist die Website unter der von Render vergebenen `*.onrender.com`-
    Adresse erreichbar.
 
-**Zwei Dinge zum kostenlosen Plan, die für ein erstes Testen okay sind, aber gut zu
-wissen:**
-- **Keine dauerhafte Datenspeicherung:** Ohne bezahlten persistenten Speicher können
-  deine Einträge verloren gehen, wenn der Server neu startet (z. B. nach einem neuen
-  Deploy). Für's Ausprobieren durch dich allein unproblematisch – sobald auch Freunde
-  mitmachen sollen und die Daten bleiben sollen, auf Renders „Starter“-Plan (~7 $/Monat)
-  wechseln und in `render.yaml` den Block `disk:` wieder ergänzen sowie
-  `DATABASE_PATH=/data/data.sqlite` setzen (war vorher schon einmal so konfiguriert).
-- **„Einschlafen“ nach Inaktivität:** Kostenlose Render-Dienste pausieren nach ca. 15
-  Minuten ohne Zugriff. Der nächste Aufruf dauert dann ca. 30–60 Sekunden (Server startet
-  neu), danach läuft alles normal.
+**Kostenhinweis:** Der persistente Speicher erfordert Renders „Starter“-Plan (aktuell ca.
+7 $/Monat) statt der kostenlosen Stufe.
 
 ### Variante B: Fly.io, Railway, eigener Server – per Docker
 
@@ -133,9 +130,18 @@ ein eigenes `JWT_SECRET` als Umgebungsvariable setzen.
 | `DATABASE_PATH` | Pfad zur SQLite-Datei (auf persistentem Speicher ablegen!)         | nein    |
 | `CORS_ORIGIN`   | Kommagetrennte Liste erlaubter Origins (nur bei getrenntem Hosting)| nein    |
 
-## Später: iOS-App
+## Zum Home-Bildschirm hinzufügen (schon jetzt möglich)
 
-Sobald die Website läuft, lässt sie sich mit [Capacitor](https://capacitorjs.com/) fast
-unverändert in eine native iOS-App verpacken (App-Store-fähig) – der bestehende
-React-Code wird dabei größtenteils wiederverwendet. Alternativ funktioniert die Website
-schon jetzt als installierbare PWA auf dem iPhone-Homescreen, ganz ohne App-Store-Review.
+Die Website ist als installierbare PWA eingerichtet (eigenes Icon, eigener Name, läuft
+im Vollbild ohne Browser-Leiste):
+
+- **iPhone/iPad (Safari):** Website öffnen → Teilen-Symbol (Quadrat mit Pfeil nach oben)
+  → „Zum Home-Bildschirm" → Hinzufügen.
+- **Android (Chrome):** Website öffnen → Menü (⋮) → „App installieren" bzw. „Zum
+  Startbildschirm hinzufügen".
+
+## Später: iOS-App im App Store
+
+Sobald du magst, lässt sich die Website mit [Capacitor](https://capacitorjs.com/) fast
+unverändert in eine native, App-Store-fähige iOS-App verpacken – der bestehende
+React-Code wird dabei größtenteils wiederverwendet.

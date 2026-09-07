@@ -45,7 +45,35 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS custom_ratings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title_id INTEGER NOT NULL REFERENCES titles(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 10),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_custom_ratings_title_id ON custom_ratings(title_id);
 `);
+
+// Leichte Migration für bereits bestehende Datenbanken: SQLite kennt kein
+// "ADD COLUMN IF NOT EXISTS", daher hier einfach ausprobieren und einen
+// "duplicate column"-Fehler bei bereits vorhandenen Spalten ignorieren.
+const NEW_RATING_COLUMNS = [
+  'rating_sound',
+  'rating_directing',
+  'rating_character_dev',
+  'rating_originality',
+  'rating_emotional',
+];
+for (const column of NEW_RATING_COLUMNS) {
+  try {
+    db.exec(`ALTER TABLE titles ADD COLUMN ${column} INTEGER`);
+  } catch (err) {
+    if (!/duplicate column/i.test(err.message)) throw err;
+  }
+}
 
 export function nowIso() {
   return new Date().toISOString();

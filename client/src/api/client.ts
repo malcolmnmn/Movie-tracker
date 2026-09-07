@@ -1,6 +1,12 @@
 export type TitleType = 'movie' | 'series';
 export type TitleStatus = 'to_watch' | 'watched';
 
+export interface CustomRating {
+  id: number;
+  label: string;
+  score: number;
+}
+
 export interface Title {
   id: number;
   name: string;
@@ -13,6 +19,12 @@ export interface Title {
   rating_tension: number | null;
   rating_pacing: number | null;
   rating_visuals: number | null;
+  rating_sound: number | null;
+  rating_directing: number | null;
+  rating_character_dev: number | null;
+  rating_originality: number | null;
+  rating_emotional: number | null;
+  custom_ratings: CustomRating[];
   ai_description: string | null;
   ai_source_url: string | null;
   ai_fetched_at: string | null;
@@ -94,6 +106,21 @@ export const api = {
     request<{ title: Title }>(`/titles/${id}/fetch-info${refresh ? '?refresh=true' : ''}`, {
       method: 'POST',
     }),
+  lookupGenre: (name: string) =>
+    request<{ genre: string | null }>(`/titles/lookup-genre?name=${encodeURIComponent(name)}`),
+
+  addCustomRating: (titleId: number, label: string, score: number) =>
+    request<{ title: Title }>(`/titles/${titleId}/custom-ratings`, {
+      method: 'POST',
+      body: JSON.stringify({ label, score }),
+    }),
+  updateCustomRating: (titleId: number, customId: number, payload: { label?: string; score?: number }) =>
+    request<{ title: Title }>(`/titles/${titleId}/custom-ratings/${customId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  deleteCustomRating: (titleId: number, customId: number) =>
+    request<{ title: Title }>(`/titles/${titleId}/custom-ratings/${customId}`, { method: 'DELETE' }),
 
   listFriends: () => request<{ friends: Friend[] }>('/friends'),
   addFriend: (username: string) =>
@@ -103,10 +130,27 @@ export const api = {
     request<{ friend: Friend; titles: Title[] }>(`/friends/${friendId}/titles`),
 };
 
-export const RATING_FIELDS: { key: keyof Title; label: string }[] = [
+export type RatingFieldKey =
+  | 'rating_acting'
+  | 'rating_story'
+  | 'rating_tension'
+  | 'rating_pacing'
+  | 'rating_visuals'
+  | 'rating_sound'
+  | 'rating_directing'
+  | 'rating_character_dev'
+  | 'rating_originality'
+  | 'rating_emotional';
+
+export const RATING_FIELDS: { key: RatingFieldKey; label: string }[] = [
   { key: 'rating_acting', label: 'Schauspielleistung' },
   { key: 'rating_story', label: 'Story' },
   { key: 'rating_tension', label: 'Spannung / Interesse' },
   { key: 'rating_pacing', label: 'Länge / Pacing' },
   { key: 'rating_visuals', label: 'Bildgestaltung' },
+  { key: 'rating_sound', label: 'Sound / Musik' },
+  { key: 'rating_directing', label: 'Regie' },
+  { key: 'rating_character_dev', label: 'Charakterentwicklung' },
+  { key: 'rating_originality', label: 'Originalität' },
+  { key: 'rating_emotional', label: 'Emotionale Wirkung' },
 ];

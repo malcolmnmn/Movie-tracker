@@ -2,7 +2,7 @@ services:
   - type: web
     name: movie-tracker
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     buildCommand: npm run build
     startCommand: npm start
@@ -12,3 +12,9 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
+      - key: DATABASE_PATH
+        value: /data/data.sqlite
+    disk:
+      name: movie-tracker-data
+      mountPath: /data
+      sizeGB: 1

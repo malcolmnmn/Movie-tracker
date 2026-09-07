@@ -13,10 +13,16 @@ function TitleDetails({ title }: { title: Title }) {
         <p className="text-gray-300 leading-relaxed">{title.ai_description}</p>
       )}
       {title.rating_count > 0 ? (
-        <ul className="grid grid-cols-2 gap-1 text-gray-400">
-          {RATING_FIELDS.map((field) => (
-            <li key={field.key}>
-              {field.label}: <span className="text-gray-100">{title[field.key] ?? '–'}</span>
+        <ul className="grid grid-cols-2 gap-1">
+          {RATING_FIELDS.filter((field) => title[field.key] !== null).map((field) => (
+            <li key={field.key} className="text-gray-400">
+              {field.label}: <span className="text-gray-100">{title[field.key]}</span>
+            </li>
+          ))}
+          {title.custom_ratings.map((c) => (
+            <li key={c.id} className="text-violet-300">
+              {c.label} <span className="text-violet-400/70">(eigene Kategorie)</span>:{' '}
+              <span className="text-violet-100">{c.score}</span>
             </li>
           ))}
         </ul>
