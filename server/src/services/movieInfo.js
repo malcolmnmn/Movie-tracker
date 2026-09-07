@@ -171,23 +171,28 @@ export async function fetchGenreSuggestion(name) {
   return null;
 }
 
-// Holt weitere, auf einer Filmseite übliche Informationen von Wikidata: Regie,
-// Besetzung, Auszeichnungen, Erscheinungsjahr und Laufzeit (kein API-Key nötig). Prüft
-// dabei mehrere Suchtreffer, bis einer gefunden wird, der überhaupt Regie- oder
-// Besetzungsangaben hat (sonst handelt es sich vermutlich nicht um den Film/die Serie
-// selbst, sondern z. B. um eine Buchvorlage mit demselben Namen). Gibt null zurück,
-// wenn nichts gefunden wird – die aufrufende Stelle blendet die Abschnitte dann aus.
-export async function fetchExtraDetails(name) {
+// Sucht den Wikidata-Eintrag, der wirklich zum Film/zur Serie gehört (nicht z. B. eine
+// gleichnamige Band, ein Begriffserklärungs-Artikel oder ein anderes Werk mit
+// demselben Namen), und liest daraus Regie, Besetzung, Auszeichnungen,
+// Erscheinungsjahr, Laufzeit sowie – über die Wikipedia-"Sitelinks" des Eintrags – den
+// EXAKTEN Wikipedia-Artikeltitel. Ein Kandidat gilt nur dann als Treffer, wenn er
+// Regie/Besetzung hat oder zumindest Genre + Erscheinungsjahr – generische
+// Begriffs-Artikel oder thematisch verwandte, aber andere Werke haben das nicht und
+// werden so aussortiert. Ohne diesen Schritt bestünde die Gefahr, dass Beschreibung
+// und Bild (von Wikipedia) zu einem anderen Eintrag gehören als Regie/Besetzung (von
+// Wikidata), weil beide sonst unabhängig voneinander suchen würden.
+async function resolveFilmEntity(name) {
   const candidateIds = await searchWikidataCandidates(name);
 
   for (const entityId of candidateIds) {
     try {
-      const claimsData = await wikidataRequest({
+      const data = await wikidataRequest({
         action: 'wbgetentities',
         ids: entityId,
-        props: 'claims',
+        props: 'claims|sitelinks',
       });
-      const claims = claimsData.entities?.[entityId]?.claims;
+      const entity = data.entities?.[entityId];
+      const claims = entity?.claims;
       if (!claims) continue;
 
       const idsOf = (property, max) =>
@@ -199,31 +204,80 @@ export async function fetchExtraDetails(name) {
       const directorIds = idsOf(DIRECTOR_PROPERTY, 2);
       const castIds = idsOf(CAST_PROPERTY, 6);
       const awardIds = idsOf(AWARD_PROPERTY, 5);
-
-      // Ohne jegliche Regie- oder Besetzungsangabe ist der Kandidat wahrscheinlich
-      // nicht der gesuchte Film/die Serie selbst – nächsten Kandidaten probieren.
-      if (directorIds.length === 0 && castIds.length === 0) continue;
-
-      const labels = await resolveLabels([...directorIds, ...castIds, ...awardIds]);
+      const genreIds = idsOf(GENRE_PROPERTY, 3);
 
       const releaseTime = claims[RELEASE_DATE_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.time;
       const releaseYear = releaseTime ? releaseTime.slice(1, 5) : null;
-
       const durationAmount = claims[DURATION_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.amount;
       const runtimeMinutes = durationAmount ? Math.round(Math.abs(Number(durationAmount))) : null;
 
-      const director = directorIds.map((id) => labels.get(id)).filter(Boolean);
-      const cast = castIds.map((id) => labels.get(id)).filter(Boolean);
-      const awards = awardIds.map((id) => labels.get(id)).filter(Boolean);
+      const looksLikeFilmOrSeries =
+        directorIds.length > 0 || castIds.length > 0 || (genreIds.length > 0 && releaseYear);
+      if (!looksLikeFilmOrSeries) continue;
 
-      if (director.length === 0 && cast.length === 0 && awards.length === 0 && !releaseYear && !runtimeMinutes) {
-        continue;
-      }
+      const labels = await resolveLabels([...directorIds, ...castIds, ...awardIds]);
 
-      return { director: director[0] || null, cast, awards, releaseYear, runtimeMinutes };
+      const dewiki = entity.sitelinks?.dewiki?.title;
+      const enwiki = entity.sitelinks?.enwiki?.title;
+
+      return {
+        director: directorIds.map((id) => labels.get(id)).filter(Boolean)[0] || null,
+        cast: castIds.map((id) => labels.get(id)).filter(Boolean),
+        awards: awardIds.map((id) => labels.get(id)).filter(Boolean),
+        releaseYear,
+        runtimeMinutes,
+        wikipediaTitle: dewiki || enwiki || null,
+        wikipediaLang: dewiki ? 'de' : enwiki ? 'en' : null,
+      };
     } catch {
       // Dieser Kandidat hat nicht geklappt – nächsten probieren.
     }
   }
   return null;
+}
+
+async function fetchWikipediaSummaryByTitle(title, lang) {
+  const baseUrl = lang === 'de' ? WIKIPEDIA_SUMMARY_URL : WIKIPEDIA_SUMMARY_URL_EN;
+  const encoded = encodeURIComponent(title.replace(/\s+/g, '_'));
+  try {
+    const data = await fetchJson(baseUrl + encoded);
+    if (!data.extract) return null;
+    return {
+      description: data.extract,
+      sourceUrl: data.content_urls?.desktop?.page || null,
+      posterUrl: data.thumbnail?.source || data.originalimage?.source || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Holt alle Detailinfos zu einem Film/einer Serie in einem Rutsch: Kurzbeschreibung,
+// Poster, Regie, Besetzung, Auszeichnungen, Erscheinungsjahr, Laufzeit (Wikipedia +
+// Wikidata, kein API-Key nötig). Beschreibung/Poster stammen dabei garantiert vom
+// selben, über Regie/Besetzung/Genre verifizierten Eintrag wie die übrigen Angaben –
+// nicht von einer unabhängigen, ggf. mehrdeutigen Wikipedia-Suche nach dem Namen.
+// Wird kein passender Wikidata-Eintrag gefunden, fällt die Beschreibung auf eine
+// direkte (weniger verlässliche) Wikipedia-Suche nach dem Namen zurück.
+export async function fetchFilmDetails(name) {
+  const entity = await resolveFilmEntity(name);
+
+  let summary = null;
+  if (entity?.wikipediaTitle) {
+    summary = await fetchWikipediaSummaryByTitle(entity.wikipediaTitle, entity.wikipediaLang);
+  }
+  if (!summary) {
+    summary = await fetchTitleSummary(name);
+  }
+
+  return {
+    description: summary.description,
+    sourceUrl: summary.sourceUrl,
+    posterUrl: summary.posterUrl,
+    director: entity?.director ?? null,
+    cast: entity?.cast ?? [],
+    awards: entity?.awards ?? [],
+    releaseYear: entity?.releaseYear ?? null,
+    runtimeMinutes: entity?.runtimeMinutes ?? null,
+  };
 }

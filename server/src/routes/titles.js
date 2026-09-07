@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, nowIso } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { fetchTitleSummary, fetchGenreSuggestion, fetchExtraDetails } from '../services/movieInfo.js';
+import { fetchGenreSuggestion, fetchFilmDetails } from '../services/movieInfo.js';
 import { pickMainGenre, FALLBACK_MAIN_GENRE } from '../services/genreClassifier.js';
 
 // Löst Name -> { genre: volle, spezifische Liste; mainGenre: grobe Oberkategorie } auf.
@@ -242,10 +242,7 @@ router.post('/:id/fetch-info', async (req, res) => {
     return res.json({ title: serializeTitle(row) });
   }
 
-  const [{ description, sourceUrl, posterUrl }, extraDetails] = await Promise.all([
-    fetchTitleSummary(row.name),
-    fetchExtraDetails(row.name),
-  ]);
+  const { description, sourceUrl, posterUrl, ...extraDetails } = await fetchFilmDetails(row.name);
   db.prepare(
     `UPDATE titles
      SET ai_description = ?, ai_source_url = ?, ai_fetched_at = ?, poster_url = ?, extra_info = ?
