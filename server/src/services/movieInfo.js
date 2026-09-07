@@ -102,138 +102,125 @@ async function resolveLabels(ids) {
   return map;
 }
 
-// Versucht, für einen einzelnen Wikidata-Kandidaten (z. B. Suchtreffer für einen Filmtitel)
-// dessen Genre-Angabe(n) (P136) als lesbaren Text aufzulösen. Gibt null zurück, wenn der
-// Kandidat keine Genre-Angabe hat (z. B. weil es gar kein Film/Serien-Eintrag ist).
-async function resolveGenreForCandidate(entityId) {
-  const claimsData = await wikidataRequest({
+const TYPE_PROPERTY = 'P31'; // "ist ein(e)" / instance of
+const MINUTE_UNIT_ID = 'Q7727';
+
+// Wikidata-"instance of"-Bezeichnungen, an denen ein Film- oder Serien-Eintrag erkannt
+// wird. Wichtig: Genre (P136) und Erscheinungsdatum (P577) allein reichen NICHT als
+// Nachweis, dass ein Eintrag ein Film/eine Serie ist – auch Alben, Bücher oder
+// Videospiele haben ein Genre und ein Erscheinungsdatum. Nur die Prüfung, WAS der
+// Eintrag laut Wikidata tatsächlich ist ("instance of"), verhindert zuverlässig
+// Verwechslungen mit gleichnamigen Alben, Büchern o. Ä.
+const FILM_OR_SERIES_TYPE_KEYWORDS = [
+  'film',
+  'movie',
+  'kurzfilm',
+  'fernsehfilm',
+  'tv-film',
+  'tv movie',
+  'fernsehserie',
+  'tv series',
+  'television series',
+  'web series',
+  'webserie',
+  'miniserie',
+  'mini-series',
+  'miniseries',
+  'anime',
+];
+
+function matchesFilmOrSeriesType(labels) {
+  return labels.some((label) => {
+    const lower = label.toLowerCase();
+    return FILM_OR_SERIES_TYPE_KEYWORDS.some((kw) => lower.includes(kw));
+  });
+}
+
+// Holt Claims + Sitelinks für einen Wikidata-Kandidaten und liefert die daraus
+// extrahierten Angaben NUR zurück, wenn "instance of" (P31) den Eintrag eindeutig als
+// Film oder Serie ausweist – sonst null (z. B. bei einem gleichnamigen Album, Buch,
+// Begriffserklärungs-Artikel o. Ä.). Genre-Liste, Regie, Besetzung, Auszeichnungen,
+// Erscheinungsjahr, Laufzeit (nur akzeptiert, wenn die Einheit "Minute" ist – andere
+// Einheiten würden sonst als falsche Minutenzahl angezeigt) und der exakte
+// Wikipedia-"Sitelink"-Titel werden in einem einzigen Request-Paar aufgelöst.
+async function resolveVerifiedEntityDetails(entityId) {
+  const data = await wikidataRequest({
     action: 'wbgetentities',
     ids: entityId,
-    props: 'claims',
+    props: 'claims|sitelinks',
   });
-  const genreClaims = claimsData.entities?.[entityId]?.claims?.[GENRE_PROPERTY];
-  if (!genreClaims?.length) return null;
+  const entity = data.entities?.[entityId];
+  const claims = entity?.claims;
+  if (!claims) return null;
 
-  const genreIds = genreClaims
-    .map((claim) => claim.mainsnak?.datavalue?.value?.id)
-    .filter(Boolean)
-    .slice(0, 3);
-  if (genreIds.length === 0) return null;
+  const idsOf = (property, max) =>
+    (claims[property] ?? [])
+      .map((claim) => claim.mainsnak?.datavalue?.value?.id)
+      .filter(Boolean)
+      .slice(0, max);
 
-  const labelsData = await wikidataRequest({
-    action: 'wbgetentities',
-    ids: genreIds.join('|'),
-    props: 'labels',
-    languages: 'de|en',
-  });
-  const labels = genreIds
-    .map((id) => {
-      const entityLabels = labelsData.entities?.[id]?.labels;
-      return entityLabels?.de?.value || entityLabels?.en?.value;
-    })
-    .filter(Boolean);
+  const typeIds = idsOf(TYPE_PROPERTY, 4);
+  const directorIds = idsOf(DIRECTOR_PROPERTY, 2);
+  const castIds = idsOf(CAST_PROPERTY, 6);
+  const awardIds = idsOf(AWARD_PROPERTY, 5);
+  const genreIds = idsOf(GENRE_PROPERTY, 3);
 
-  return labels.length > 0 ? labels : null;
+  const labels = await resolveLabels([...typeIds, ...directorIds, ...castIds, ...awardIds, ...genreIds]);
+
+  const typeLabels = typeIds.map((id) => labels.get(id)).filter(Boolean);
+  if (!matchesFilmOrSeriesType(typeLabels)) return null;
+
+  const releaseTime = claims[RELEASE_DATE_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.time;
+  const releaseYear = releaseTime ? releaseTime.slice(1, 5) : null;
+
+  const duration = claims[DURATION_PROPERTY]?.[0]?.mainsnak?.datavalue?.value;
+  const durationUnitId = duration?.unit?.split('/').pop();
+  const runtimeMinutes =
+    duration?.amount && durationUnitId === MINUTE_UNIT_ID
+      ? Math.round(Math.abs(Number(duration.amount)))
+      : null;
+
+  const dewiki = entity.sitelinks?.dewiki?.title;
+  const enwiki = entity.sitelinks?.enwiki?.title;
+
+  return {
+    genre: genreIds.map((id) => labels.get(id)).filter(Boolean),
+    director: directorIds.map((id) => labels.get(id)).filter(Boolean)[0] || null,
+    cast: castIds.map((id) => labels.get(id)).filter(Boolean),
+    awards: awardIds.map((id) => labels.get(id)).filter(Boolean),
+    releaseYear,
+    runtimeMinutes,
+    wikipediaTitle: dewiki || enwiki || null,
+    wikipediaLang: dewiki ? 'de' : enwiki ? 'en' : null,
+  };
 }
 
-// Schlägt anhand von Wikidata automatisch die (meist mehreren, spezifischen) Genres für
-// einen Film-/Serientitel vor (kein API-Key nötig) und gibt sie als Liste zurück – die
-// Aufrufer entscheiden, ob sie die volle Liste anzeigen oder daraus eine grobe
-// Hauptkategorie ableiten (siehe genreClassifier.js). Probiert dafür mehrere
-// Suchtreffer und beide Sprachen durch, bevor aufgegeben wird – ein einzelner
-// Fehlschlag (Netzwerk, falscher erster Treffer ohne Genre-Angabe, …) beendet die Suche
-// nicht sofort. Gibt null zurück, wenn wirklich nichts gefunden wird.
-export async function fetchGenreSuggestion(name) {
-  for (const language of ['de', 'en']) {
-    let candidates;
-    try {
-      const search = await wikidataRequest({
-        action: 'wbsearchentities',
-        search: name.trim(),
-        language,
-        type: 'item',
-        limit: '5',
-      });
-      candidates = search.search ?? [];
-    } catch {
-      continue; // Suche in dieser Sprache fehlgeschlagen – nächste Sprache probieren.
-    }
-
-    for (const candidate of candidates) {
-      try {
-        const genre = await resolveGenreForCandidate(candidate.id);
-        if (genre) return genre;
-      } catch {
-        // Dieser Kandidat hat nicht geklappt – nächsten Kandidaten probieren.
-      }
-    }
-  }
-  return null;
-}
-
-// Sucht den Wikidata-Eintrag, der wirklich zum Film/zur Serie gehört (nicht z. B. eine
-// gleichnamige Band, ein Begriffserklärungs-Artikel oder ein anderes Werk mit
-// demselben Namen), und liest daraus Regie, Besetzung, Auszeichnungen,
-// Erscheinungsjahr, Laufzeit sowie – über die Wikipedia-"Sitelinks" des Eintrags – den
-// EXAKTEN Wikipedia-Artikeltitel. Ein Kandidat gilt nur dann als Treffer, wenn er
-// Regie/Besetzung hat oder zumindest Genre + Erscheinungsjahr – generische
-// Begriffs-Artikel oder thematisch verwandte, aber andere Werke haben das nicht und
-// werden so aussortiert. Ohne diesen Schritt bestünde die Gefahr, dass Beschreibung
-// und Bild (von Wikipedia) zu einem anderen Eintrag gehören als Regie/Besetzung (von
-// Wikidata), weil beide sonst unabhängig voneinander suchen würden.
-async function resolveFilmEntity(name) {
+// Sucht den Wikidata-Eintrag, der wirklich zum Film/zur Serie gehört (nicht z. B. ein
+// gleichnamiges Album, Buch oder ein Begriffserklärungs-Artikel), und probiert dafür
+// mehrere Suchtreffer durch, bis einer die Typprüfung besteht. Wird von der
+// Genre-Erkennung UND von fetchFilmDetails verwendet, damit beide zuverlässig densel­
+// ben, korrekt identifizierten Eintrag zugrunde legen.
+async function resolveVerifiedFilmEntity(name) {
   const candidateIds = await searchWikidataCandidates(name);
-
   for (const entityId of candidateIds) {
     try {
-      const data = await wikidataRequest({
-        action: 'wbgetentities',
-        ids: entityId,
-        props: 'claims|sitelinks',
-      });
-      const entity = data.entities?.[entityId];
-      const claims = entity?.claims;
-      if (!claims) continue;
-
-      const idsOf = (property, max) =>
-        (claims[property] ?? [])
-          .map((claim) => claim.mainsnak?.datavalue?.value?.id)
-          .filter(Boolean)
-          .slice(0, max);
-
-      const directorIds = idsOf(DIRECTOR_PROPERTY, 2);
-      const castIds = idsOf(CAST_PROPERTY, 6);
-      const awardIds = idsOf(AWARD_PROPERTY, 5);
-      const genreIds = idsOf(GENRE_PROPERTY, 3);
-
-      const releaseTime = claims[RELEASE_DATE_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.time;
-      const releaseYear = releaseTime ? releaseTime.slice(1, 5) : null;
-      const durationAmount = claims[DURATION_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.amount;
-      const runtimeMinutes = durationAmount ? Math.round(Math.abs(Number(durationAmount))) : null;
-
-      const looksLikeFilmOrSeries =
-        directorIds.length > 0 || castIds.length > 0 || (genreIds.length > 0 && releaseYear);
-      if (!looksLikeFilmOrSeries) continue;
-
-      const labels = await resolveLabels([...directorIds, ...castIds, ...awardIds]);
-
-      const dewiki = entity.sitelinks?.dewiki?.title;
-      const enwiki = entity.sitelinks?.enwiki?.title;
-
-      return {
-        director: directorIds.map((id) => labels.get(id)).filter(Boolean)[0] || null,
-        cast: castIds.map((id) => labels.get(id)).filter(Boolean),
-        awards: awardIds.map((id) => labels.get(id)).filter(Boolean),
-        releaseYear,
-        runtimeMinutes,
-        wikipediaTitle: dewiki || enwiki || null,
-        wikipediaLang: dewiki ? 'de' : enwiki ? 'en' : null,
-      };
+      const details = await resolveVerifiedEntityDetails(entityId);
+      if (details) return details;
     } catch {
       // Dieser Kandidat hat nicht geklappt – nächsten probieren.
     }
   }
   return null;
+}
+
+// Schlägt anhand von Wikidata automatisch die (meist mehreren, spezifischen) Genres für
+// einen Film-/Serientitel vor (kein API-Key nötig) und gibt sie als Liste zurück – die
+// Aufrufer entscheiden, ob sie die volle Liste anzeigen oder daraus eine grobe
+// Hauptkategorie ableiten (siehe genreClassifier.js). Gibt null zurück, wenn kein
+// verifizierter Film-/Serien-Eintrag mit Genre-Angabe gefunden wird.
+export async function fetchGenreSuggestion(name) {
+  const entity = await resolveVerifiedFilmEntity(name);
+  return entity && entity.genre.length > 0 ? entity.genre : null;
 }
 
 async function fetchWikipediaSummaryByTitle(title, lang) {
@@ -255,12 +242,12 @@ async function fetchWikipediaSummaryByTitle(title, lang) {
 // Holt alle Detailinfos zu einem Film/einer Serie in einem Rutsch: Kurzbeschreibung,
 // Poster, Regie, Besetzung, Auszeichnungen, Erscheinungsjahr, Laufzeit (Wikipedia +
 // Wikidata, kein API-Key nötig). Beschreibung/Poster stammen dabei garantiert vom
-// selben, über Regie/Besetzung/Genre verifizierten Eintrag wie die übrigen Angaben –
-// nicht von einer unabhängigen, ggf. mehrdeutigen Wikipedia-Suche nach dem Namen.
-// Wird kein passender Wikidata-Eintrag gefunden, fällt die Beschreibung auf eine
-// direkte (weniger verlässliche) Wikipedia-Suche nach dem Namen zurück.
+// selben, über den Wikidata-Typ ("instance of") als Film/Serie verifizierten Eintrag
+// wie die übrigen Angaben – nicht von einer unabhängigen, ggf. mehrdeutigen
+// Wikipedia-Suche nach dem Namen. Wird kein passender Wikidata-Eintrag gefunden, fällt
+// die Beschreibung auf eine direkte (weniger verlässliche) Wikipedia-Suche zurück.
 export async function fetchFilmDetails(name) {
-  const entity = await resolveFilmEntity(name);
+  const entity = await resolveVerifiedFilmEntity(name);
 
   let summary = null;
   if (entity?.wikipediaTitle) {
