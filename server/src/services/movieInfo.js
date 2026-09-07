@@ -55,6 +55,16 @@ const CAST_PROPERTY = 'P161';
 const AWARD_PROPERTY = 'P166';
 const RELEASE_DATE_PROPERTY = 'P577';
 const DURATION_PROPERTY = 'P2047';
+const IMAGE_PROPERTY = 'P18'; // Bild/Poster, direkt am Wikidata-Eintrag hinterlegt
+
+// Wandelt einen Wikimedia-Commons-Dateinamen (aus P18) in eine direkt aufrufbare
+// Bild-URL um. Special:FilePath leitet auf die tatsächliche Datei weiter – funktioniert
+// unabhängig davon, ob/wie Wikipedia für den zugehörigen Artikel ein Vorschaubild
+// ausgewählt hat, und ist damit zuverlässiger als sich auf Wikipedias
+// Artikel-Thumbnail zu verlassen.
+function commonsFilePathUrl(filename) {
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}`;
+}
 
 async function wikidataRequest(params) {
   const url = `${WIKIDATA_API}?${new URLSearchParams({ format: 'json', ...params })}`;
@@ -183,6 +193,9 @@ async function resolveVerifiedEntityDetails(entityId) {
   const dewiki = entity.sitelinks?.dewiki?.title;
   const enwiki = entity.sitelinks?.enwiki?.title;
 
+  const imageFilename = claims[IMAGE_PROPERTY]?.[0]?.mainsnak?.datavalue?.value;
+  const posterUrl = imageFilename ? commonsFilePathUrl(imageFilename) : null;
+
   return {
     genre: genreIds.map((id) => labels.get(id)).filter(Boolean),
     director: directorIds.map((id) => labels.get(id)).filter(Boolean)[0] || null,
@@ -190,6 +203,7 @@ async function resolveVerifiedEntityDetails(entityId) {
     awards: awardIds.map((id) => labels.get(id)).filter(Boolean),
     releaseYear,
     runtimeMinutes,
+    posterUrl,
     wikipediaTitle: dewiki || enwiki || null,
     wikipediaLang: dewiki ? 'de' : enwiki ? 'en' : null,
   };
@@ -257,10 +271,22 @@ export async function fetchFilmDetails(name) {
     summary = await fetchTitleSummary(name);
   }
 
+  // Poster: bevorzugt das direkt am verifizierten Wikidata-Eintrag hinterlegte Bild
+  // (zuverlässiger, da unabhängig davon, ob Wikipedia für den Artikel ein
+  // Vorschaubild ausgewählt hat). Fällt sonst auf das Wikipedia-Thumbnail zurück –
+  // notfalls sogar auf eines aus der weniger verlässlichen Namenssuche, damit
+  // wenigstens irgendein Cover angezeigt wird, auch wenn die entity-basierte
+  // Wikipedia-Zusammenfassung selbst keins mitliefert.
+  let posterUrl = entity?.posterUrl || summary.posterUrl;
+  if (!posterUrl && entity?.wikipediaTitle) {
+    const rawSummary = await fetchTitleSummary(name);
+    posterUrl = rawSummary.posterUrl;
+  }
+
   return {
     description: summary.description,
     sourceUrl: summary.sourceUrl,
-    posterUrl: summary.posterUrl,
+    posterUrl: posterUrl || null,
     director: entity?.director ?? null,
     cast: entity?.cast ?? [],
     awards: entity?.awards ?? [],
