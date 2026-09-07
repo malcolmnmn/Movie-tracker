@@ -79,12 +79,12 @@ router.get('/:friendId/titles', (req, res) => {
   }
   const friend = db.prepare('SELECT id, username FROM users WHERE id = ?').get(friendId);
   const rows = db
-    .prepare('SELECT * FROM titles WHERE owner_id = ? ORDER BY genre ASC, name ASC')
+    .prepare('SELECT * FROM titles WHERE owner_id = ? ORDER BY main_genre ASC, name ASC')
     .all(friendId);
   const titles = rows.map((row) => serializeTitle(row));
   titles.sort((a, b) => {
     if (a.status !== b.status) return a.status === 'watched' ? -1 : 1;
-    if (a.genre !== b.genre) return a.genre.localeCompare(b.genre);
+    if (a.main_genre !== b.main_genre) return a.main_genre.localeCompare(b.main_genre);
     const avgA = a.average_rating ?? -1;
     const avgB = b.average_rating ?? -1;
     return avgB - avgA;

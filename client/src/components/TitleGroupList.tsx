@@ -26,17 +26,17 @@ export function TitleGroupList({ titles, linkTo, emptyMessage, renderActions }: 
 
   const groups = new Map<string, Title[]>();
   for (const title of titles) {
-    const list = groups.get(title.genre) ?? [];
+    const list = groups.get(title.main_genre) ?? [];
     list.push(title);
-    groups.set(title.genre, list);
+    groups.set(title.main_genre, list);
   }
 
   return (
     <div className="space-y-8">
-      {[...groups.entries()].map(([genre, items]) => (
-        <div key={genre}>
+      {[...groups.entries()].map(([mainGenre, items]) => (
+        <div key={mainGenre}>
           <h3 className="text-yellow-400 font-semibold uppercase tracking-wide text-sm mb-3">
-            {genre}
+            {mainGenre}
           </h3>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((title) => (
@@ -53,7 +53,12 @@ export function TitleGroupList({ titles, linkTo, emptyMessage, renderActions }: 
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-gray-400">{typeLabel(title.type)}</span>
+                  <span className="text-xs text-gray-400">
+                    {typeLabel(title.type)}
+                    {title.genre && title.genre !== title.main_genre && (
+                      <span className="text-gray-500"> · {title.genre}</span>
+                    )}
+                  </span>
                 </Link>
                 {renderActions && <div className="mt-3">{renderActions(title)}</div>}
               </li>

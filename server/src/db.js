@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pickMainGenre, FALLBACK_MAIN_GENRE } from './services/genreClassifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Erlaubt, den DB-Pfad z. B. auf ein persistentes Volume (Render Disk, Fly Volume, …) zu legen.
@@ -32,6 +33,7 @@ db.exec(`
     name TEXT NOT NULL,
     type TEXT NOT NULL CHECK (type IN ('movie', 'series')),
     genre TEXT NOT NULL,
+    main_genre TEXT NOT NULL DEFAULT 'Sonstiges',
     status TEXT NOT NULL CHECK (status IN ('to_watch', 'watched')) DEFAULT 'to_watch',
     notes TEXT,
     rating_acting INTEGER,
@@ -73,6 +75,29 @@ for (const column of NEW_RATING_COLUMNS) {
   } catch (err) {
     if (!/duplicate column/i.test(err.message)) throw err;
   }
+}
+
+let mainGenreColumnIsNew = false;
+try {
+  db.exec(`ALTER TABLE titles ADD COLUMN main_genre TEXT NOT NULL DEFAULT '${FALLBACK_MAIN_GENRE}'`);
+  mainGenreColumnIsNew = true;
+} catch (err) {
+  if (!/duplicate column/i.test(err.message)) throw err;
+}
+
+// Einmaliger Backfill: Titel, die vor Einführung der Hauptkategorie angelegt wurden,
+// bekommen ihre Hauptkategorie aus der bereits gespeicherten (vollständigen) Genre-Liste
+// abgeleitet, statt dauerhaft im Sammel-Genre "Sonstiges" zu landen.
+if (mainGenreColumnIsNew) {
+  const rows = db.prepare('SELECT id, genre FROM titles').all();
+  const update = db.prepare('UPDATE titles SET main_genre = ? WHERE id = ?');
+  const backfill = db.transaction((items) => {
+    for (const row of items) {
+      const labels = row.genre.split(',').map((s) => s.trim()).filter(Boolean);
+      update.run(pickMainGenre(labels), row.id);
+    }
+  });
+  backfill(rows);
 }
 
 export function nowIso() {

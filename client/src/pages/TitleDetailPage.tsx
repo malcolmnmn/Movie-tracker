@@ -128,7 +128,10 @@ export function TitleDetailPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-100">{title.name}</h1>
-            <p className="text-gray-400 text-sm mt-1 flex items-center gap-1.5">
+            <span className="inline-block mt-1.5 text-xs font-semibold uppercase tracking-wide bg-yellow-400/10 text-yellow-400 rounded px-2 py-0.5">
+              {title.main_genre}
+            </span>
+            <p className="text-gray-400 text-sm mt-1.5 flex items-center gap-1.5 flex-wrap">
               {title.type === 'movie' ? 'Film' : 'Serie'} ·{' '}
               {editingGenre ? (
                 <input

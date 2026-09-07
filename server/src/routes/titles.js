@@ -2,6 +2,16 @@ import { Router } from 'express';
 import { db, nowIso } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { fetchTitleSummary, fetchGenreSuggestion } from '../services/movieInfo.js';
+import { pickMainGenre, FALLBACK_MAIN_GENRE } from '../services/genreClassifier.js';
+
+// Löst Name -> { genre: volle, spezifische Liste; mainGenre: grobe Oberkategorie } auf.
+// Wird sowohl beim Anlegen (falls der Client kein Genre mitschickt) als auch vom
+// eigenständigen Lookup-Endpoint für das Frontend verwendet.
+async function resolveGenreFields(name) {
+  const labels = await fetchGenreSuggestion(name);
+  if (!labels?.length) return { genre: FALLBACK_MAIN_GENRE, mainGenre: FALLBACK_MAIN_GENRE };
+  return { genre: labels.join(', '), mainGenre: pickMainGenre(labels) };
+}
 
 const router = Router();
 router.use(requireAuth);
@@ -60,7 +70,15 @@ function withAverage(title, customRatings) {
 }
 
 function serializeTitle(row, customRatings = getCustomRatings(row.id)) {
-  const base = { id: row.id, name: row.name, type: row.type, genre: row.genre, status: row.status, notes: row.notes };
+  const base = {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    genre: row.genre,
+    main_genre: row.main_genre,
+    status: row.status,
+    notes: row.notes,
+  };
   for (const field of RATING_FIELDS) base[field.key] = row[field.key];
   base.ai_description = row.ai_description;
   base.ai_source_url = row.ai_source_url;
@@ -71,25 +89,26 @@ function serializeTitle(row, customRatings = getCustomRatings(row.id)) {
 }
 
 // Liste aller Titel des angemeldeten Nutzers, optional gefiltert nach Status.
-// Die Sortierung nach Genre + Bewertung (bester zuerst) übernimmt die Liste selbst;
-// das Frontend gruppiert zusätzlich visuell nach Genre.
+// Die Sortierung nach Hauptgenre + Bewertung (bester zuerst) übernimmt die Liste selbst;
+// das Frontend gruppiert zusätzlich visuell nach der (groben) Hauptkategorie, damit
+// ähnliche Filme zusammenlanden statt in vielen einzigartigen Genre-Kombinationen.
 router.get('/', (req, res) => {
   const { status } = req.query;
   let rows;
   if (status === 'to_watch' || status === 'watched') {
     rows = db
-      .prepare('SELECT * FROM titles WHERE owner_id = ? AND status = ? ORDER BY genre ASC, name ASC')
+      .prepare('SELECT * FROM titles WHERE owner_id = ? AND status = ? ORDER BY main_genre ASC, name ASC')
       .all(req.userId, status);
   } else {
     rows = db
-      .prepare('SELECT * FROM titles WHERE owner_id = ? ORDER BY genre ASC, name ASC')
+      .prepare('SELECT * FROM titles WHERE owner_id = ? ORDER BY main_genre ASC, name ASC')
       .all(req.userId);
   }
   const customRatingsMap = getCustomRatingsForTitles(rows.map((r) => r.id));
   const titles = rows.map((row) => serializeTitle(row, customRatingsMap.get(row.id) ?? []));
   if (status === 'watched') {
     titles.sort((a, b) => {
-      if (a.genre !== b.genre) return a.genre.localeCompare(b.genre);
+      if (a.main_genre !== b.main_genre) return a.main_genre.localeCompare(b.main_genre);
       const avgA = a.average_rating ?? -1;
       const avgB = b.average_rating ?? -1;
       return avgB - avgA;
@@ -98,36 +117,50 @@ router.get('/', (req, res) => {
   res.json({ titles });
 });
 
-// Schlägt anhand des Titelnamens automatisch ein Genre vor (Wikidata, kein API-Key nötig).
+// Schlägt anhand des Titelnamens automatisch Genres vor (Wikidata, kein API-Key nötig):
+// "genre" ist die volle, spezifische Liste (für die Detailseite), "mainGenre" eine grobe
+// Oberkategorie (für die Gruppierung in den Listen).
 router.get('/lookup-genre', async (req, res) => {
   const name = req.query.name;
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ error: 'Name wird benötigt.' });
   }
-  const genre = await fetchGenreSuggestion(name);
-  res.json({ genre });
+  const labels = await fetchGenreSuggestion(name);
+  res.json({
+    genre: labels?.length ? labels.join(', ') : null,
+    mainGenre: labels?.length ? pickMainGenre(labels) : null,
+  });
 });
 
 router.post('/', async (req, res) => {
   const { name, type, status } = req.body;
-  let { genre } = req.body;
+  let { genre, mainGenre } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: 'Name und Typ werden benötigt.' });
   }
   if (!['movie', 'series'].includes(type)) {
     return res.status(400).json({ error: 'Typ muss "movie" oder "series" sein.' });
   }
-  // Genre ist optional: wird das Feld nicht mitgeschickt (z. B. weil der Client die
-  // Erkennung nicht selbst übernommen hat), ermittelt der Server es automatisch.
+  // Genre ist optional: wird es nicht mitgeschickt (z. B. weil der Client die Erkennung
+  // nicht selbst übernommen hat), ermittelt der Server Genre + Hauptkategorie selbst.
   if (!genre || !genre.trim()) {
-    genre = (await fetchGenreSuggestion(name)) || 'Sonstiges';
+    ({ genre, mainGenre } = await resolveGenreFields(name));
+  } else if (!mainGenre || !mainGenre.trim()) {
+    mainGenre = pickMainGenre(genre.split(',').map((s) => s.trim()));
   }
   const info = db
     .prepare(
-      `INSERT INTO titles (owner_id, name, type, genre, status)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO titles (owner_id, name, type, genre, main_genre, status)
+       VALUES (?, ?, ?, ?, ?, ?)`
     )
-    .run(req.userId, name.trim(), type, genre.trim(), status === 'watched' ? 'watched' : 'to_watch');
+    .run(
+      req.userId,
+      name.trim(),
+      type,
+      genre.trim(),
+      mainGenre.trim(),
+      status === 'watched' ? 'watched' : 'to_watch'
+    );
   const row = db.prepare('SELECT * FROM titles WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ title: serializeTitle(row) });
 });
@@ -146,7 +179,7 @@ router.patch('/:id', (req, res) => {
   const row = getOwnedTitle(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Titel nicht gefunden.' });
 
-  const allowed = ['name', 'genre', 'status', 'notes', ...RATING_FIELDS.map((f) => f.key)];
+  const allowed = ['name', 'genre', 'main_genre', 'status', 'notes', ...RATING_FIELDS.map((f) => f.key)];
   const updates = [];
   const values = [];
   for (const key of allowed) {
@@ -158,6 +191,14 @@ router.patch('/:id', (req, res) => {
       updates.push(`${key} = ?`);
       values.push(value);
     }
+  }
+  // Wird das (volle, spezifische) Genre manuell korrigiert, ohne dass gleichzeitig auch
+  // die Hauptkategorie mitgeschickt wird, die Hauptkategorie automatisch neu ableiten –
+  // sonst würde die Gruppierung in den Listen nicht mehr zum korrigierten Genre passen.
+  if ('genre' in req.body && !('main_genre' in req.body)) {
+    const labels = String(req.body.genre).split(',').map((s) => s.trim()).filter(Boolean);
+    updates.push('main_genre = ?');
+    values.push(pickMainGenre(labels));
   }
   if (updates.length === 0) {
     return res.status(400).json({ error: 'Keine gültigen Felder zum Aktualisieren.' });

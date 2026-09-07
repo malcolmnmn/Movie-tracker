@@ -12,6 +12,7 @@ export interface Title {
   name: string;
   type: TitleType;
   genre: string;
+  main_genre: string;
   status: TitleStatus;
   notes: string | null;
   rating_acting: number | null;
@@ -97,8 +98,13 @@ export const api = {
   listTitles: (status?: TitleStatus) =>
     request<{ titles: Title[] }>(`/titles${status ? `?status=${status}` : ''}`),
   getTitle: (id: number) => request<{ title: Title }>(`/titles/${id}`),
-  createTitle: (payload: { name: string; type: TitleType; genre: string; status?: TitleStatus }) =>
-    request<{ title: Title }>('/titles', { method: 'POST', body: JSON.stringify(payload) }),
+  createTitle: (payload: {
+    name: string;
+    type: TitleType;
+    genre?: string;
+    mainGenre?: string;
+    status?: TitleStatus;
+  }) => request<{ title: Title }>('/titles', { method: 'POST', body: JSON.stringify(payload) }),
   updateTitle: (id: number, payload: Partial<Title>) =>
     request<{ title: Title }>(`/titles/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteTitle: (id: number) => request<void>(`/titles/${id}`, { method: 'DELETE' }),
@@ -107,7 +113,9 @@ export const api = {
       method: 'POST',
     }),
   lookupGenre: (name: string) =>
-    request<{ genre: string | null }>(`/titles/lookup-genre?name=${encodeURIComponent(name)}`),
+    request<{ genre: string | null; mainGenre: string | null }>(
+      `/titles/lookup-genre?name=${encodeURIComponent(name)}`
+    ),
 
   addCustomRating: (titleId: number, label: string, score: number) =>
     request<{ title: Title }>(`/titles/${titleId}/custom-ratings`, {

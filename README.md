@@ -11,8 +11,13 @@ Listen und Bewertungen anderer einsehen kannst.
   markieren. Das Genre wird komplett automatisch ermittelt (Wikidata) – kein manuelles
   Eintippen nötig. Liegt die Erkennung mal daneben, lässt sich das Genre auf der
   Detailseite eines Titels per Klick korrigieren.
-- **Geschaut**: Titel nach Genre gruppiert, innerhalb jeder Gruppe von der besten zur
-  schlechtesten Bewertung sortiert.
+- **Genre-Gruppierung**: Für die Listen wird aus den oft sehr spezifischen,
+  automatisch erkannten Genres (z. B. "Heist-Movie, Science-Fiction-Film, Thriller")
+  eine grobe Hauptkategorie abgeleitet (z. B. "Sci-Fi"), damit ähnliche Filme
+  zusammenlanden statt in vielen einzigartigen Mini-Gruppen. Die volle, spezifische
+  Genre-Liste bleibt auf der Detailseite eines Titels sichtbar.
+- **Geschaut**: Titel nach Hauptkategorie gruppiert, innerhalb jeder Gruppe von der
+  besten zur schlechtesten Bewertung sortiert.
 - **Bewertung**: Auf der Detailseite eines Titels lassen sich 10 feste Kategorien
   (Schauspielleistung, Story, Spannung/Interesse, Länge/Pacing, Bildgestaltung,
   Sound/Musik, Regie, Charakterentwicklung, Originalität, Emotionale Wirkung) von 1–10

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { api, type TitleType } from '../api/client';
 
 interface Props {
-  onSubmit: (data: { name: string; type: TitleType; genre: string }) => Promise<void>;
+  onSubmit: (data: { name: string; type: TitleType; genre: string; mainGenre: string }) => Promise<void>;
 }
 
 const FALLBACK_GENRE = 'Sonstiges';
@@ -17,15 +17,18 @@ export function AddTitleForm({ onSubmit }: Props) {
   // Wird bereits im Hintergrund geladen, sobald das Namensfeld verlassen wird, damit
   // beim Absenden meist schon ein Ergebnis vorliegt; falls nicht, wird es beim
   // Absenden selbst nachgeholt. Schlägt die Erkennung fehl, greift ein Sammel-Genre.
-  const resolvedGenre = useRef<{ forName: string; genre: string } | null>(null);
+  const resolvedGenre = useRef<{ forName: string; genre: string; mainGenre: string } | null>(null);
   const lookupRequestId = useRef(0);
 
   async function lookupGenreFor(trimmedName: string) {
     try {
       const res = await api.lookupGenre(trimmedName);
-      return res.genre || FALLBACK_GENRE;
+      return {
+        genre: res.genre || FALLBACK_GENRE,
+        mainGenre: res.mainGenre || FALLBACK_GENRE,
+      };
     } catch {
-      return FALLBACK_GENRE;
+      return { genre: FALLBACK_GENRE, mainGenre: FALLBACK_GENRE };
     }
   }
 
@@ -33,9 +36,9 @@ export function AddTitleForm({ onSubmit }: Props) {
     const trimmedName = name.trim();
     if (!trimmedName) return;
     const requestId = ++lookupRequestId.current;
-    const genre = await lookupGenreFor(trimmedName);
+    const { genre, mainGenre } = await lookupGenreFor(trimmedName);
     if (requestId !== lookupRequestId.current) return; // Name hat sich inzwischen geändert
-    resolvedGenre.current = { forName: trimmedName, genre };
+    resolvedGenre.current = { forName: trimmedName, genre, mainGenre };
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -48,11 +51,11 @@ export function AddTitleForm({ onSubmit }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const genre =
+      const { genre, mainGenre } =
         resolvedGenre.current?.forName === trimmedName
-          ? resolvedGenre.current.genre
+          ? resolvedGenre.current
           : await lookupGenreFor(trimmedName);
-      await onSubmit({ name: trimmedName, type, genre });
+      await onSubmit({ name: trimmedName, type, genre, mainGenre });
       setName('');
       resolvedGenre.current = null;
     } catch (err) {

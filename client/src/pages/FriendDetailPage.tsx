@@ -58,18 +58,18 @@ export function FriendDetailPage() {
     if (items.length === 0) return null;
     const groups = new Map<string, Title[]>();
     for (const t of items) {
-      const list = groups.get(t.genre) ?? [];
+      const list = groups.get(t.main_genre) ?? [];
       list.push(t);
-      groups.set(t.genre, list);
+      groups.set(t.main_genre, list);
     }
     return (
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-gray-100 mb-3">{label}</h2>
         <div className="space-y-6">
-          {[...groups.entries()].map(([genre, group]) => (
-            <div key={genre}>
+          {[...groups.entries()].map(([mainGenre, group]) => (
+            <div key={mainGenre}>
               <h3 className="text-yellow-400 font-semibold uppercase tracking-wide text-sm mb-2">
-                {genre}
+                {mainGenre}
               </h3>
               <ul className="grid gap-3 sm:grid-cols-2">
                 {group.map((title) => (
@@ -83,6 +83,9 @@ export function FriendDetailPage() {
                         <span className="font-medium text-gray-100">{title.name}</span>
                         <span className="block text-xs text-gray-400">
                           {typeLabel(title.type)}
+                          {title.genre && title.genre !== title.main_genre && (
+                            <span className="text-gray-500"> · {title.genre}</span>
+                          )}
                         </span>
                       </div>
                       {title.average_rating !== null && (

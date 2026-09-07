@@ -18,7 +18,7 @@ export function WatchedPage() {
     load();
   }, []);
 
-  async function handleAdd(data: { name: string; type: Title['type']; genre: string }) {
+  async function handleAdd(data: { name: string; type: Title['type']; genre: string; mainGenre: string }) {
     await api.createTitle({ ...data, status: 'watched' });
     await load();
   }

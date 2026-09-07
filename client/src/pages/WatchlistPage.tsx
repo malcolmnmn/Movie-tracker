@@ -18,7 +18,7 @@ export function WatchlistPage() {
     load();
   }, []);
 
-  async function handleAdd(data: { name: string; type: Title['type']; genre: string }) {
+  async function handleAdd(data: { name: string; type: Title['type']; genre: string; mainGenre: string }) {
     await api.createTitle({ ...data, status: 'to_watch' });
     await load();
   }

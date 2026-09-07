@@ -85,14 +85,16 @@ async function resolveGenreForCandidate(entityId) {
     })
     .filter(Boolean);
 
-  return labels.length > 0 ? labels.join(', ') : null;
+  return labels.length > 0 ? labels : null;
 }
 
-// Schlägt anhand von Wikidata automatisch ein Genre für einen Film-/Serientitel vor
-// (kein API-Key nötig). Probiert dafür mehrere Suchtreffer und beide Sprachen durch,
-// bevor aufgegeben wird – ein einzelner Fehlschlag (Netzwerk, falscher erster Treffer
-// ohne Genre-Angabe, …) beendet die Suche nicht sofort. Gibt null zurück, wenn wirklich
-// nichts gefunden wird – dann greift im Frontend/Backend ein Sammel-Genre als Fallback.
+// Schlägt anhand von Wikidata automatisch die (meist mehreren, spezifischen) Genres für
+// einen Film-/Serientitel vor (kein API-Key nötig) und gibt sie als Liste zurück – die
+// Aufrufer entscheiden, ob sie die volle Liste anzeigen oder daraus eine grobe
+// Hauptkategorie ableiten (siehe genreClassifier.js). Probiert dafür mehrere
+// Suchtreffer und beide Sprachen durch, bevor aufgegeben wird – ein einzelner
+// Fehlschlag (Netzwerk, falscher erster Treffer ohne Genre-Angabe, …) beendet die Suche
+// nicht sofort. Gibt null zurück, wenn wirklich nichts gefunden wird.
 export async function fetchGenreSuggestion(name) {
   for (const language of ['de', 'en']) {
     let candidates;
