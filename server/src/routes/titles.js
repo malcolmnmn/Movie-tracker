@@ -108,13 +108,19 @@ router.get('/lookup-genre', async (req, res) => {
   res.json({ genre });
 });
 
-router.post('/', (req, res) => {
-  const { name, type, genre, status } = req.body;
-  if (!name || !type || !genre) {
-    return res.status(400).json({ error: 'Name, Typ und Genre werden benötigt.' });
+router.post('/', async (req, res) => {
+  const { name, type, status } = req.body;
+  let { genre } = req.body;
+  if (!name || !type) {
+    return res.status(400).json({ error: 'Name und Typ werden benötigt.' });
   }
   if (!['movie', 'series'].includes(type)) {
     return res.status(400).json({ error: 'Typ muss "movie" oder "series" sein.' });
+  }
+  // Genre ist optional: wird das Feld nicht mitgeschickt (z. B. weil der Client die
+  // Erkennung nicht selbst übernommen hat), ermittelt der Server es automatisch.
+  if (!genre || !genre.trim()) {
+    genre = (await fetchGenreSuggestion(name)) || 'Sonstiges';
   }
   const info = db
     .prepare(

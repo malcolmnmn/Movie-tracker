@@ -17,6 +17,8 @@ export function TitleDetailPage() {
   const [savingRatings, setSavingRatings] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [customRows, setCustomRows] = useState<CustomRow[]>([]);
+  const [editingGenre, setEditingGenre] = useState(false);
+  const [genreDraft, setGenreDraft] = useState('');
 
   async function load() {
     setLoading(true);
@@ -86,6 +88,16 @@ export function TitleDetailPage() {
     }
   }
 
+  async function saveGenre() {
+    if (!title || !genreDraft.trim()) {
+      setEditingGenre(false);
+      return;
+    }
+    const res = await api.updateTitle(title.id, { genre: genreDraft.trim() });
+    setTitle(res.title);
+    setEditingGenre(false);
+  }
+
   async function toggleStatus() {
     if (!title) return;
     const nextStatus = title.status === 'watched' ? 'to_watch' : 'watched';
@@ -116,8 +128,29 @@ export function TitleDetailPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-100">{title.name}</h1>
-            <p className="text-gray-400 text-sm mt-1">
-              {title.type === 'movie' ? 'Film' : 'Serie'} · {title.genre}
+            <p className="text-gray-400 text-sm mt-1 flex items-center gap-1.5">
+              {title.type === 'movie' ? 'Film' : 'Serie'} ·{' '}
+              {editingGenre ? (
+                <input
+                  autoFocus
+                  value={genreDraft}
+                  onChange={(e) => setGenreDraft(e.target.value)}
+                  onBlur={saveGenre}
+                  onKeyDown={(e) => e.key === 'Enter' && saveGenre()}
+                  className="bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-sm text-gray-100 w-32"
+                />
+              ) : (
+                <button
+                  onClick={() => {
+                    setGenreDraft(title.genre);
+                    setEditingGenre(true);
+                  }}
+                  className="underline decoration-dotted decoration-gray-600 hover:text-gray-200"
+                  title="Automatisch erkanntes Genre korrigieren"
+                >
+                  {title.genre}
+                </button>
+              )}
             </p>
           </div>
           {title.average_rating !== null && (

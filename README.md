@@ -7,9 +7,10 @@ Listen und Bewertungen anderer einsehen kannst.
 ## Funktionen
 
 - **Task-Leiste (Navigation)** mit den Bereichen *Watchlist*, *Geschaut* und *Freunde*.
-- **Watchlist**: Filme/Serien nach Name, Typ (Film/Serie) und Genre hinzufügen; per Klick
-  als "geschaut" markieren. Das Genre wird automatisch vorgeschlagen (Wikidata), sobald
-  du das Namensfeld verlässt – frei überschreibbar.
+- **Watchlist**: Nur Name und Typ (Film/Serie) eintragen; per Klick als "geschaut"
+  markieren. Das Genre wird komplett automatisch ermittelt (Wikidata) – kein manuelles
+  Eintippen nötig. Liegt die Erkennung mal daneben, lässt sich das Genre auf der
+  Detailseite eines Titels per Klick korrigieren.
 - **Geschaut**: Titel nach Genre gruppiert, innerhalb jeder Gruppe von der besten zur
   schlechtesten Bewertung sortiert.
 - **Bewertung**: Auf der Detailseite eines Titels lassen sich 10 feste Kategorien
