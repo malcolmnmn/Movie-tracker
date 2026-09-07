@@ -16,6 +16,31 @@ async function fetchJson(url) {
 
 const WIKIPEDIA_SUMMARY_URL = 'https://de.wikipedia.org/api/rest_v1/page/summary/';
 const WIKIPEDIA_SUMMARY_URL_EN = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
+const WIKIPEDIA_ACTION_API = { de: 'https://de.wikipedia.org/w/api.php', en: 'https://en.wikipedia.org/w/api.php' };
+
+// Holt das Artikelbild über die klassische MediaWiki-Action-API (statt der neueren
+// REST-"summary"-API). Das ist ein unabhängiger zweiter Weg, an dasselbe Bild zu
+// kommen: Die REST-API liefert ihr "thumbnail"-Feld nicht immer zuverlässig (u. a. bei
+// Bildern, die nicht frei lizenziert sind – was für Film-/Serien-Poster die Regel,
+// nicht die Ausnahme ist), während die Action-API dafür bekannt ist, das Artikelbild
+// deutlich zuverlässiger zu finden.
+async function fetchPageImageViaActionApi(title, lang) {
+  const apiBase = WIKIPEDIA_ACTION_API[lang] ?? WIKIPEDIA_ACTION_API.en;
+  const url = `${apiBase}?${new URLSearchParams({
+    action: 'query',
+    titles: title,
+    prop: 'pageimages',
+    piprop: 'original',
+    format: 'json',
+    formatversion: '2',
+  })}`;
+  try {
+    const data = await fetchJson(url);
+    return data.query?.pages?.[0]?.original?.source || null;
+  } catch {
+    return null;
+  }
+}
 
 // Holt eine kurze, wikipedia-basierte "Steckbrief"-Beschreibung zu einem Film/einer Serie,
 // vergleichbar mit dem Infokasten einer Google-Suche. Fällt auf die englische Wikipedia
@@ -260,6 +285,34 @@ async function fetchWikipediaSummaryByTitle(title, lang) {
 // wie die übrigen Angaben – nicht von einer unabhängigen, ggf. mehrdeutigen
 // Wikipedia-Suche nach dem Namen. Wird kein passender Wikidata-Eintrag gefunden, fällt
 // die Beschreibung auf eine direkte (weniger verlässliche) Wikipedia-Suche zurück.
+// Versucht mehrere unabhängige Quellen der Reihe nach, bis eine ein Bild liefert – vom
+// verifizierten Eintrag ausgehend (garantiert korrekt), erst danach über die weniger
+// verlässliche Namenssuche (nur als letzter Notnagel, damit möglichst nie gar kein
+// Cover angezeigt wird):
+//   1. Wikidata P18 (direkt am Eintrag, wenn frei lizenziert vorhanden)
+//   2. Wikipedia-Artikelbild über die Action-API (findet auch nicht frei lizenzierte
+//      Poster, die die REST-API manchmal nicht als "thumbnail" ausliefert)
+//   3. Wikipedia-REST-Zusammenfassung (bereits ohnehin abgerufen)
+//   4. Dieselben zwei Wikipedia-Wege nochmal, aber über die rohe Namenssuche statt den
+//      über Wikidata aufgelösten Artikeltitel
+async function resolvePosterUrl(entity, name, summary) {
+  if (entity?.posterUrl) return entity.posterUrl;
+
+  if (entity?.wikipediaTitle) {
+    const viaActionApi = await fetchPageImageViaActionApi(entity.wikipediaTitle, entity.wikipediaLang);
+    if (viaActionApi) return viaActionApi;
+  }
+
+  if (summary.posterUrl) return summary.posterUrl;
+
+  for (const lang of ['de', 'en']) {
+    const viaActionApi = await fetchPageImageViaActionApi(name, lang);
+    if (viaActionApi) return viaActionApi;
+  }
+
+  return null;
+}
+
 export async function fetchFilmDetails(name) {
   const entity = await resolveVerifiedFilmEntity(name);
 
@@ -271,14 +324,10 @@ export async function fetchFilmDetails(name) {
     summary = await fetchTitleSummary(name);
   }
 
-  // Poster: bevorzugt das direkt am verifizierten Wikidata-Eintrag hinterlegte Bild
-  // (zuverlässiger, da unabhängig davon, ob Wikipedia für den Artikel ein
-  // Vorschaubild ausgewählt hat). Fällt sonst auf das Wikipedia-Thumbnail zurück –
-  // notfalls sogar auf eines aus der weniger verlässlichen Namenssuche, damit
-  // wenigstens irgendein Cover angezeigt wird, auch wenn die entity-basierte
-  // Wikipedia-Zusammenfassung selbst keins mitliefert.
-  let posterUrl = entity?.posterUrl || summary.posterUrl;
-  if (!posterUrl && entity?.wikipediaTitle) {
+  let posterUrl = await resolvePosterUrl(entity, name, summary);
+  if (!posterUrl) {
+    // Letzter Versuch: Poster aus der rohen Namenssuche, auch wenn Beschreibung/Cast
+    // bereits vom verifizierten Eintrag kommen.
     const rawSummary = await fetchTitleSummary(name);
     posterUrl = rawSummary.posterUrl;
   }
