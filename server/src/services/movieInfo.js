@@ -31,6 +31,7 @@ export async function fetchTitleSummary(name) {
       return {
         description: data.extract,
         sourceUrl: data.content_urls?.desktop?.page || null,
+        posterUrl: data.thumbnail?.source || data.originalimage?.source || null,
       };
     } catch {
       // Diese Quelle hat nicht geklappt – nächste probieren, statt ganz aufzugeben.
@@ -42,16 +43,63 @@ export async function fetchTitleSummary(name) {
       'Für diesen Titel konnte keine automatische Beschreibung gefunden werden. ' +
       'Du kannst eigene Notizen im Bewertungsformular ergänzen.',
     sourceUrl: null,
+    posterUrl: null,
   };
 }
 
 const WIKIDATA_API = 'https://www.wikidata.org/w/api.php';
-// Wikidata-Eigenschaft "Genre" (P136) – funktioniert sowohl für Filme als auch Serien.
+// Wikidata-Eigenschaften, die für Filme/Serien ausgewertet werden.
 const GENRE_PROPERTY = 'P136';
+const DIRECTOR_PROPERTY = 'P57';
+const CAST_PROPERTY = 'P161';
+const AWARD_PROPERTY = 'P166';
+const RELEASE_DATE_PROPERTY = 'P577';
+const DURATION_PROPERTY = 'P2047';
 
 async function wikidataRequest(params) {
   const url = `${WIKIDATA_API}?${new URLSearchParams({ format: 'json', ...params })}`;
   return fetchJson(url);
+}
+
+// Sucht auf Wikidata nach Kandidaten für einen Titel, probiert dafür Deutsch und
+// Englisch durch. Liefert eine Liste von { id, language }-Kandidaten in Suchreihenfolge,
+// über die Aufrufer iterieren, bis einer mit den benötigten Angaben gefunden wird.
+async function searchWikidataCandidates(name) {
+  const candidates = [];
+  for (const language of ['de', 'en']) {
+    try {
+      const search = await wikidataRequest({
+        action: 'wbsearchentities',
+        search: name.trim(),
+        language,
+        type: 'item',
+        limit: '5',
+      });
+      for (const c of search.search ?? []) candidates.push(c.id);
+    } catch {
+      // Suche in dieser Sprache fehlgeschlagen – trotzdem mit der anderen weitermachen.
+    }
+  }
+  return candidates;
+}
+
+// Löst eine Liste von Wikidata-Entity-IDs (z. B. Schauspieler, Auszeichnungen) in einem
+// einzigen Request zu lesbaren Bezeichnungen auf.
+async function resolveLabels(ids) {
+  if (ids.length === 0) return new Map();
+  const data = await wikidataRequest({
+    action: 'wbgetentities',
+    ids: ids.join('|'),
+    props: 'labels',
+    languages: 'de|en',
+  });
+  const map = new Map();
+  for (const id of ids) {
+    const labels = data.entities?.[id]?.labels;
+    const label = labels?.de?.value || labels?.en?.value;
+    if (label) map.set(id, label);
+  }
+  return map;
 }
 
 // Versucht, für einen einzelnen Wikidata-Kandidaten (z. B. Suchtreffer für einen Filmtitel)
@@ -118,6 +166,63 @@ export async function fetchGenreSuggestion(name) {
       } catch {
         // Dieser Kandidat hat nicht geklappt – nächsten Kandidaten probieren.
       }
+    }
+  }
+  return null;
+}
+
+// Holt weitere, auf einer Filmseite übliche Informationen von Wikidata: Regie,
+// Besetzung, Auszeichnungen, Erscheinungsjahr und Laufzeit (kein API-Key nötig). Prüft
+// dabei mehrere Suchtreffer, bis einer gefunden wird, der überhaupt Regie- oder
+// Besetzungsangaben hat (sonst handelt es sich vermutlich nicht um den Film/die Serie
+// selbst, sondern z. B. um eine Buchvorlage mit demselben Namen). Gibt null zurück,
+// wenn nichts gefunden wird – die aufrufende Stelle blendet die Abschnitte dann aus.
+export async function fetchExtraDetails(name) {
+  const candidateIds = await searchWikidataCandidates(name);
+
+  for (const entityId of candidateIds) {
+    try {
+      const claimsData = await wikidataRequest({
+        action: 'wbgetentities',
+        ids: entityId,
+        props: 'claims',
+      });
+      const claims = claimsData.entities?.[entityId]?.claims;
+      if (!claims) continue;
+
+      const idsOf = (property, max) =>
+        (claims[property] ?? [])
+          .map((claim) => claim.mainsnak?.datavalue?.value?.id)
+          .filter(Boolean)
+          .slice(0, max);
+
+      const directorIds = idsOf(DIRECTOR_PROPERTY, 2);
+      const castIds = idsOf(CAST_PROPERTY, 6);
+      const awardIds = idsOf(AWARD_PROPERTY, 5);
+
+      // Ohne jegliche Regie- oder Besetzungsangabe ist der Kandidat wahrscheinlich
+      // nicht der gesuchte Film/die Serie selbst – nächsten Kandidaten probieren.
+      if (directorIds.length === 0 && castIds.length === 0) continue;
+
+      const labels = await resolveLabels([...directorIds, ...castIds, ...awardIds]);
+
+      const releaseTime = claims[RELEASE_DATE_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.time;
+      const releaseYear = releaseTime ? releaseTime.slice(1, 5) : null;
+
+      const durationAmount = claims[DURATION_PROPERTY]?.[0]?.mainsnak?.datavalue?.value?.amount;
+      const runtimeMinutes = durationAmount ? Math.round(Math.abs(Number(durationAmount))) : null;
+
+      const director = directorIds.map((id) => labels.get(id)).filter(Boolean);
+      const cast = castIds.map((id) => labels.get(id)).filter(Boolean);
+      const awards = awardIds.map((id) => labels.get(id)).filter(Boolean);
+
+      if (director.length === 0 && cast.length === 0 && awards.length === 0 && !releaseYear && !runtimeMinutes) {
+        continue;
+      }
+
+      return { director: director[0] || null, cast, awards, releaseYear, runtimeMinutes };
+    } catch {
+      // Dieser Kandidat hat nicht geklappt – nächsten probieren.
     }
   }
   return null;

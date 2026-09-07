@@ -7,6 +7,14 @@ export interface CustomRating {
   score: number;
 }
 
+export interface ExtraInfo {
+  director: string | null;
+  cast: string[];
+  awards: string[];
+  releaseYear: string | null;
+  runtimeMinutes: number | null;
+}
+
 export interface Title {
   id: number;
   name: string;
@@ -29,6 +37,8 @@ export interface Title {
   ai_description: string | null;
   ai_source_url: string | null;
   ai_fetched_at: string | null;
+  poster_url: string | null;
+  extra_info: ExtraInfo | null;
   created_at: string;
   updated_at: string;
   average_rating: number | null;

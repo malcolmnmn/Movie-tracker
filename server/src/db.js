@@ -44,6 +44,8 @@ db.exec(`
     ai_description TEXT,
     ai_source_url TEXT,
     ai_fetched_at TEXT,
+    poster_url TEXT,
+    extra_info TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -72,6 +74,14 @@ const NEW_RATING_COLUMNS = [
 for (const column of NEW_RATING_COLUMNS) {
   try {
     db.exec(`ALTER TABLE titles ADD COLUMN ${column} INTEGER`);
+  } catch (err) {
+    if (!/duplicate column/i.test(err.message)) throw err;
+  }
+}
+
+for (const column of ['poster_url', 'extra_info']) {
+  try {
+    db.exec(`ALTER TABLE titles ADD COLUMN ${column} TEXT`);
   } catch (err) {
     if (!/duplicate column/i.test(err.message)) throw err;
   }

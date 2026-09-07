@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, nowIso } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { fetchTitleSummary, fetchGenreSuggestion } from '../services/movieInfo.js';
+import { fetchTitleSummary, fetchGenreSuggestion, fetchExtraDetails } from '../services/movieInfo.js';
 import { pickMainGenre, FALLBACK_MAIN_GENRE } from '../services/genreClassifier.js';
 
 // Löst Name -> { genre: volle, spezifische Liste; mainGenre: grobe Oberkategorie } auf.
@@ -83,6 +83,8 @@ function serializeTitle(row, customRatings = getCustomRatings(row.id)) {
   base.ai_description = row.ai_description;
   base.ai_source_url = row.ai_source_url;
   base.ai_fetched_at = row.ai_fetched_at;
+  base.poster_url = row.poster_url;
+  base.extra_info = row.extra_info ? JSON.parse(row.extra_info) : null;
   base.created_at = row.created_at;
   base.updated_at = row.updated_at;
   return withAverage(base, customRatings);
@@ -179,6 +181,15 @@ router.patch('/:id', (req, res) => {
   const row = getOwnedTitle(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Titel nicht gefunden.' });
 
+  // Bewertet werden kann erst, wenn der Titel als "gesehen" markiert ist.
+  const setsRating = RATING_FIELDS.some((f) => f.key in req.body && req.body[f.key] !== null);
+  const effectiveStatus = req.body.status ?? row.status;
+  if (setsRating && effectiveStatus !== 'watched') {
+    return res.status(400).json({
+      error: 'Erst als "gesehen" markieren, um diesen Titel bewerten zu können.',
+    });
+  }
+
   const allowed = ['name', 'genre', 'main_genre', 'status', 'notes', ...RATING_FIELDS.map((f) => f.key)];
   const updates = [];
   const values = [];
@@ -219,7 +230,9 @@ router.delete('/:id', (req, res) => {
   res.status(204).end();
 });
 
-// Holt (und cacht) eine kurze KI/Wikipedia-Kurzbeschreibung für den Titel.
+// Holt (und cacht) eine kurze KI/Wikipedia-Kurzbeschreibung sowie weitere Infos zum
+// Titel: Poster-Bild, Regie, Besetzung, Auszeichnungen, Erscheinungsjahr, Laufzeit
+// (Wikipedia + Wikidata, kein API-Key nötig).
 router.post('/:id/fetch-info', async (req, res) => {
   const row = getOwnedTitle(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Titel nicht gefunden.' });
@@ -229,10 +242,15 @@ router.post('/:id/fetch-info', async (req, res) => {
     return res.json({ title: serializeTitle(row) });
   }
 
-  const { description, sourceUrl } = await fetchTitleSummary(row.name);
+  const [{ description, sourceUrl, posterUrl }, extraDetails] = await Promise.all([
+    fetchTitleSummary(row.name),
+    fetchExtraDetails(row.name),
+  ]);
   db.prepare(
-    'UPDATE titles SET ai_description = ?, ai_source_url = ?, ai_fetched_at = ? WHERE id = ?'
-  ).run(description, sourceUrl, nowIso(), row.id);
+    `UPDATE titles
+     SET ai_description = ?, ai_source_url = ?, ai_fetched_at = ?, poster_url = ?, extra_info = ?
+     WHERE id = ?`
+  ).run(description, sourceUrl, nowIso(), posterUrl, JSON.stringify(extraDetails), row.id);
 
   const updated = db.prepare('SELECT * FROM titles WHERE id = ?').get(row.id);
   res.json({ title: serializeTitle(updated) });
@@ -242,6 +260,11 @@ router.post('/:id/fetch-info', async (req, res) => {
 router.post('/:id/custom-ratings', (req, res) => {
   const row = getOwnedTitle(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Titel nicht gefunden.' });
+  if (row.status !== 'watched') {
+    return res.status(400).json({
+      error: 'Erst als "gesehen" markieren, um diesen Titel bewerten zu können.',
+    });
+  }
 
   const { label, score } = req.body;
   if (!label || typeof label !== 'string' || !label.trim()) {
@@ -261,7 +284,7 @@ router.post('/:id/custom-ratings', (req, res) => {
 function getOwnedCustomRating(titleId, customId, userId) {
   return db
     .prepare(
-      `SELECT custom_ratings.* FROM custom_ratings
+      `SELECT custom_ratings.*, titles.status AS title_status FROM custom_ratings
        JOIN titles ON titles.id = custom_ratings.title_id
        WHERE custom_ratings.id = ? AND custom_ratings.title_id = ? AND titles.owner_id = ?`
     )
@@ -271,6 +294,11 @@ function getOwnedCustomRating(titleId, customId, userId) {
 router.patch('/:id/custom-ratings/:customId', (req, res) => {
   const existing = getOwnedCustomRating(req.params.id, req.params.customId, req.userId);
   if (!existing) return res.status(404).json({ error: 'Kategorie nicht gefunden.' });
+  if (existing.title_status !== 'watched') {
+    return res.status(400).json({
+      error: 'Erst als "gesehen" markieren, um diesen Titel bewerten zu können.',
+    });
+  }
 
   const { label, score } = req.body;
   const updates = [];

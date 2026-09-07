@@ -18,15 +18,18 @@ Listen und Bewertungen anderer einsehen kannst.
   Genre-Liste bleibt auf der Detailseite eines Titels sichtbar.
 - **Geschaut**: Titel nach Hauptkategorie gruppiert, innerhalb jeder Gruppe von der
   besten zur schlechtesten Bewertung sortiert.
-- **Bewertung**: Auf der Detailseite eines Titels lassen sich 10 feste Kategorien
-  (Schauspielleistung, Story, Spannung/Interesse, Länge/Pacing, Bildgestaltung,
-  Sound/Musik, Regie, Charakterentwicklung, Originalität, Emotionale Wirkung) von 1–10
-  bewerten – plus beliebig viele **eigene Kategorien** (Button "+ Eigene Kategorie
-  hinzufügen"), die violett hervorgehoben werden, damit auch Freunde erkennen, welche
-  Kategorien selbst hinzugefügt wurden. Der Durchschnitt über alle ausgefüllten
-  Kategorien wird automatisch berechnet und in der Liste angezeigt.
-- **Kurzbeschreibung**: Auf der Detailseite wird automatisch eine kurze
-  Wikipedia-Zusammenfassung zum Titel geladen (ähnlich der Infobox einer Google-Suche).
+- **Bewertung**: Erst möglich, nachdem ein Titel als "gesehen" markiert wurde – in der
+  Watchlist lässt sich noch nicht bewerten. Auf der Detailseite eines gesehenen Titels
+  lassen sich dann 10 feste Kategorien (Schauspielleistung, Story, Spannung/Interesse,
+  Länge/Pacing, Bildgestaltung, Sound/Musik, Regie, Charakterentwicklung, Originalität,
+  Emotionale Wirkung) von 1–10 bewerten – plus beliebig viele **eigene Kategorien**
+  (Button "+ Eigene Kategorie hinzufügen"), die violett hervorgehoben werden, damit auch
+  Freunde erkennen, welche Kategorien selbst hinzugefügt wurden. Der Durchschnitt über
+  alle ausgefüllten Kategorien wird automatisch berechnet und in der Liste angezeigt.
+- **Filminfos auf der Detailseite** (bereits in der Watchlist sichtbar, nicht erst nach
+  dem Ansehen): Cover-Bild, kurze Wikipedia-Zusammenfassung, Regie, Besetzung,
+  Erscheinungsjahr, Laufzeit, Auszeichnungen sowie ein Link zur Trailer-Suche auf
+  YouTube – automatisch über Wikipedia/Wikidata geladen, kein API-Key nötig.
 - **Freunde**: Freunde per Benutzername hinzufügen und deren Watchlist, geschaute Titel
   und Bewertungen (inkl. deren eigener Kategorien) einsehen.
 - **Installierbar** als App auf dem Homescreen (iOS/Android) – kein App-Store nötig.
