@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.js';
 import titlesRoutes from './routes/titles.js';
 import friendsRoutes from './routes/friends.js';
+import suggestionsRoutes from './routes/suggestions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -24,6 +25,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/titles', titlesRoutes);
 app.use('/api/friends', friendsRoutes);
+app.use('/api/suggestions', suggestionsRoutes);
 
 // Im Produktivbetrieb liefert derselbe Server auch das gebaute Frontend aus (client/dist),
 // damit nur ein einziger Dienst deployt werden muss und keine CORS-Konfiguration nötig ist.

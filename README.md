@@ -6,7 +6,8 @@ Listen und Bewertungen anderer einsehen kannst.
 
 ## Funktionen
 
-- **Task-Leiste (Navigation)** mit den Bereichen *Watchlist*, *Geschaut* und *Freunde*.
+- **Task-Leiste (Navigation)** mit den Bereichen *Watchlist*, *Geschaut*, *Freunde* und
+  *Film-Vorschlag*.
 - **Watchlist**: Nur Name und Typ (Film/Serie) eintragen; per Klick als "geschaut"
   markieren. Das Genre wird komplett automatisch ermittelt (Wikidata) – kein manuelles
   Eintippen nötig. Liegt die Erkennung mal daneben, lässt sich das Genre auf der
@@ -31,7 +32,20 @@ Listen und Bewertungen anderer einsehen kannst.
   Erscheinungsjahr, Laufzeit, Auszeichnungen sowie ein Link zur Trailer-Suche auf
   YouTube – automatisch über Wikipedia/Wikidata geladen, kein API-Key nötig.
 - **Freunde**: Freunde per Benutzername hinzufügen und deren Watchlist, geschaute Titel
-  und Bewertungen (inkl. deren eigener Kategorien) einsehen.
+  und Bewertungen (inkl. deren eigener Kategorien) einsehen. Ganz oben auf dem Profil
+  eines Freundes steht direkt dessen **Top 10** (siehe unten).
+- **Film-Vorschlag**: Eine handverlesene, kompakte Liste aus Klassikern, besonders
+  gefeierten Werken und neueren Titeln (Kategorien "Klassiker", "Meistgefeiert", "Neu").
+  Titel, die bereits in der eigenen Watchlist oder bei "Geschaut" stehen, werden
+  automatisch herausgefiltert. Pro Vorschlag genügt ein Klick auf "Geschaut" oder
+  "+ Watchlist". Die Liste stammt aus einer kuratierten, leicht erweiterbaren
+  Datenquelle (`server/src/data/suggestedTitles.js`) – es gibt keine Anbindung an
+  Social Media oder einen Live-Trend-Feed, die Liste kann aber jederzeit von Hand um
+  neue Titel ergänzt werden.
+- **Top 10**: Automatisch berechnet aus allen bewerteten, bereits geschauten Titeln
+  (genreübergreifend, nach Durchschnittsbewertung sortiert) – aktualisiert sich von
+  selbst, sobald sich Bewertungen ändern. Steht am Ende der eigenen "Geschaut"-Seite
+  (nach den Genre-Gruppen) und ganz oben auf dem Profil eines Freundes.
 - **Installierbar** als App auf dem Homescreen (iOS/Android) – kein App-Store nötig.
 
 ## Projektstruktur

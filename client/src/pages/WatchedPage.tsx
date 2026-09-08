@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type Title } from '../api/client';
 import { AddTitleForm } from '../components/AddTitleForm';
 import { TitleGroupList } from '../components/TitleGroupList';
+import { TopTenList } from '../components/TopTenList';
 
 export function WatchedPage() {
   const [titles, setTitles] = useState<Title[]>([]);
@@ -36,11 +37,16 @@ export function WatchedPage() {
       {loading ? (
         <p className="text-gray-400">Lädt…</p>
       ) : (
-        <TitleGroupList
-          titles={titles}
-          linkTo={(t) => `/titles/${t.id}`}
-          emptyMessage="Du hast noch nichts als geschaut markiert."
-        />
+        <>
+          <TitleGroupList
+            titles={titles}
+            linkTo={(t) => `/titles/${t.id}`}
+            emptyMessage="Du hast noch nichts als geschaut markiert."
+          />
+          <div className="mt-10 pt-8 border-t border-gray-800">
+            <TopTenList titles={titles} linkTo={(t) => `/titles/${t.id}`} heading="Deine Top 10" />
+          </div>
+        </>
       )}
     </div>
   );

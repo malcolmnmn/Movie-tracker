@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, RATING_FIELDS, type Friend, type Title } from '../api/client';
+import { TopTenList } from '../components/TopTenList';
 
 function typeLabel(type: Title['type']) {
   return type === 'movie' ? 'Film' : 'Serie';
@@ -54,6 +55,13 @@ export function FriendDetailPage() {
   const watched = titles.filter((t) => t.status === 'watched');
   const toWatch = titles.filter((t) => t.status === 'to_watch');
 
+  function selectFromTopTen(title: Title) {
+    setExpandedId(title.id);
+    document
+      .getElementById(`friend-title-${title.id}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   function renderSection(label: string, items: Title[]) {
     if (items.length === 0) return null;
     const groups = new Map<string, Title[]>();
@@ -75,7 +83,8 @@ export function FriendDetailPage() {
                 {group.map((title) => (
                   <li
                     key={title.id}
-                    className="bg-gray-800 rounded-xl p-4 border border-gray-700 cursor-pointer"
+                    id={`friend-title-${title.id}`}
+                    className="bg-gray-800 rounded-xl p-4 border border-gray-700 cursor-pointer scroll-mt-20"
                     onClick={() => setExpandedId(expandedId === title.id ? null : title.id)}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -117,6 +126,11 @@ export function FriendDetailPage() {
         <p className="text-gray-400 italic">Diese Person hat noch nichts eingetragen.</p>
       ) : (
         <>
+          <TopTenList
+            titles={watched}
+            onSelect={selectFromTopTen}
+            heading={`${friend?.username}s Top 10`}
+          />
           {renderSection('Bereits geschaut', watched)}
           {renderSection('Watchlist', toWatch)}
         </>

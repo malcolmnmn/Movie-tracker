@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pickMainGenre, FALLBACK_MAIN_GENRE } from './services/genreClassifier.js';
+import { SUGGESTED_TITLES } from './data/suggestedTitles.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Erlaubt, den DB-Pfad z. B. auf ein persistentes Volume (Render Disk, Fly Volume, …) zu legen.
@@ -59,7 +60,29 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_custom_ratings_title_id ON custom_ratings(title_id);
+
+  CREATE TABLE IF NOT EXISTS suggested_titles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('movie', 'series')),
+    category TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+// Einmalig mit einer kuratierten Auswahl befüllen (siehe data/suggestedTitles.js),
+// falls die Tabelle noch leer ist – z. B. beim allerersten Start oder auf einer frisch
+// angelegten Datenbank.
+const suggestedCount = db.prepare('SELECT COUNT(*) AS n FROM suggested_titles').get().n;
+if (suggestedCount === 0) {
+  const insertSuggestion = db.prepare(
+    'INSERT INTO suggested_titles (name, type, category) VALUES (?, ?, ?)'
+  );
+  const seedSuggestions = db.transaction((items) => {
+    for (const item of items) insertSuggestion.run(item.name, item.type, item.category);
+  });
+  seedSuggestions(SUGGESTED_TITLES);
+}
 
 // Leichte Migration für bereits bestehende Datenbanken: SQLite kennt kein
 // "ADD COLUMN IF NOT EXISTS", daher hier einfach ausprobieren und einen

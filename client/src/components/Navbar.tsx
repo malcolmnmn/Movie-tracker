@@ -30,6 +30,9 @@ export function Navbar() {
         <NavLink to="/friends" className={linkClass}>
           Freunde
         </NavLink>
+        <NavLink to="/suggestions" className={linkClass}>
+          Film-Vorschlag
+        </NavLink>
       </div>
       <div className="flex items-center gap-3 text-sm text-gray-300">
         <span>

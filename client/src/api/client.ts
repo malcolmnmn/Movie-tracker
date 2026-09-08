@@ -50,6 +50,13 @@ export interface Friend {
   username: string;
 }
 
+export interface Suggestion {
+  id: number;
+  name: string;
+  type: TitleType;
+  category: string;
+}
+
 const TOKEN_KEY = 'movie-tracker-token';
 
 export function getToken(): string | null {
@@ -146,6 +153,8 @@ export const api = {
   removeFriend: (friendId: number) => request<void>(`/friends/${friendId}`, { method: 'DELETE' }),
   friendTitles: (friendId: number) =>
     request<{ friend: Friend; titles: Title[] }>(`/friends/${friendId}/titles`),
+
+  listSuggestions: () => request<{ suggestions: Suggestion[] }>('/suggestions'),
 };
 
 export type RatingFieldKey =

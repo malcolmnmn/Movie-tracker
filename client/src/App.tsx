@@ -8,6 +8,7 @@ import { WatchedPage } from './pages/WatchedPage';
 import { TitleDetailPage } from './pages/TitleDetailPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { FriendDetailPage } from './pages/FriendDetailPage';
+import { SuggestionsPage } from './pages/SuggestionsPage';
 
 export default function App() {
   return (
@@ -53,6 +54,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <FriendDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/suggestions"
+          element={
+            <ProtectedRoute>
+              <SuggestionsPage />
             </ProtectedRoute>
           }
         />
