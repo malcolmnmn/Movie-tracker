@@ -60,6 +60,8 @@ export interface Suggestion {
 export interface SuggestionDetail extends Suggestion {
   description: string;
   sourceUrl: string | null;
+  posterUrl: string | null;
+  extraInfo: ExtraInfo | null;
 }
 
 const TOKEN_KEY = 'movie-tracker-token';

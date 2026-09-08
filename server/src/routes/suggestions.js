@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, nowIso } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { fetchTitleSummary } from '../services/movieInfo.js';
+import { fetchFilmDetails } from '../services/movieInfo.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -26,22 +26,27 @@ router.get('/', (req, res) => {
   res.json({ suggestions });
 });
 
-// Ganz bewusst schlank gehalten (nur Kurzbeschreibung, kein Poster/Cast/Auszeichnungen
-// wie bei einem bereits hinzugefügten Titel): ein Vorschlag ist noch nicht Teil der
-// eigenen Liste, hier soll man nur auf einen Blick einschätzen können, worum es geht,
-// bevor man ihn zur Watchlist hinzufügt oder als gesehen markiert. Wird gecacht, damit
-// nicht bei jedem Aufruf erneut extern nachgeschlagen werden muss.
+// Bewusst schlank gehalten (kurze Beschreibung + Trailer-Link stehen im Vordergrund,
+// keine Bewertung – die bleibt der Detailseite bereits hinzugefügter Titel
+// vorbehalten): trotzdem werden Poster, Besetzung und Auszeichnungen mit angezeigt,
+// sofern vorhanden, damit man sich vor dem Hinzufügen ein besseres Bild machen kann.
+// Wird gecacht, damit nicht bei jedem Aufruf erneut extern nachgeschlagen werden muss.
 router.get('/:id', async (req, res) => {
   const row = db.prepare('SELECT * FROM suggested_titles WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Vorschlag nicht gefunden.' });
 
   if (!row.ai_description) {
-    const { description, sourceUrl } = await fetchTitleSummary(row.name);
+    const { description, sourceUrl, posterUrl, ...extraDetails } = await fetchFilmDetails(row.name);
+    const extraInfo = JSON.stringify(extraDetails);
     db.prepare(
-      'UPDATE suggested_titles SET ai_description = ?, ai_source_url = ?, ai_fetched_at = ? WHERE id = ?'
-    ).run(description, sourceUrl, nowIso(), row.id);
+      `UPDATE suggested_titles
+       SET ai_description = ?, ai_source_url = ?, ai_fetched_at = ?, poster_url = ?, extra_info = ?
+       WHERE id = ?`
+    ).run(description, sourceUrl, nowIso(), posterUrl, extraInfo, row.id);
     row.ai_description = description;
     row.ai_source_url = sourceUrl;
+    row.poster_url = posterUrl;
+    row.extra_info = extraInfo;
   }
 
   res.json({
@@ -52,6 +57,8 @@ router.get('/:id', async (req, res) => {
       category: row.category,
       description: row.ai_description,
       sourceUrl: row.ai_source_url,
+      posterUrl: row.poster_url,
+      extraInfo: row.extra_info ? JSON.parse(row.extra_info) : null,
     },
   });
 });

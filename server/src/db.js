@@ -69,11 +69,13 @@ db.exec(`
     ai_description TEXT,
     ai_source_url TEXT,
     ai_fetched_at TEXT,
+    poster_url TEXT,
+    extra_info TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
 
-for (const column of ['ai_description', 'ai_source_url', 'ai_fetched_at']) {
+for (const column of ['ai_description', 'ai_source_url', 'ai_fetched_at', 'poster_url', 'extra_info']) {
   try {
     db.exec(`ALTER TABLE suggested_titles ADD COLUMN ${column} TEXT`);
   } catch (err) {

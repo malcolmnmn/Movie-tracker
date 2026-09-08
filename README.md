@@ -41,10 +41,11 @@ Listen und Bewertungen anderer einsehen kannst.
   bessere Übersicht. Titel, die bereits in der eigenen Watchlist oder bei "Geschaut"
   stehen, werden automatisch herausgefiltert, sodass die Liste sich beim Hinzufügen
   laufend aktualisiert. Ein Klick auf einen Titel öffnet eine schlanke Detailseite mit
-  nur einer kurzen Beschreibung und einem Trailer-Link (bewusst ohne Poster, Cast oder
-  Bewertung – das bleibt der Detailseite bereits hinzugefügter Titel vorbehalten); von
-  dort oder direkt aus der Liste heraus lässt sich der Titel per Klick auf "Geschaut"
-  oder "+ Watchlist" übernehmen. Die Liste stammt aus einer kuratierten, leicht
+  Poster, kurzer Beschreibung, Besetzung und Auszeichnungen (jeweils nur, sofern
+  vorhanden) sowie einem Trailer-Link – bewusst weiterhin ohne Bewertungsmöglichkeit,
+  die bleibt der Detailseite bereits hinzugefügter Titel vorbehalten; von dort oder
+  direkt aus der Liste heraus lässt sich der Titel per Klick auf "Geschaut" oder
+  "+ Watchlist" übernehmen. Die Liste stammt aus einer kuratierten, leicht
   erweiterbaren Datenquelle (`server/src/data/suggestedTitles.js`) – es gibt keine
   Anbindung an Social Media oder einen Live-Trend-Feed, die Liste kann aber jederzeit
   von Hand um neue Titel ergänzt werden.

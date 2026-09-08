@@ -40,6 +40,9 @@ export function SuggestionDetailPage() {
     return <div className="p-8 text-center text-gray-400">Lädt…</div>;
   }
 
+  const extra = suggestion.extraInfo;
+  const hasCastOrAwards = extra && ((extra.cast?.length ?? 0) > 0 || (extra.awards?.length ?? 0) > 0);
+
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <button
@@ -49,11 +52,20 @@ export function SuggestionDetailPage() {
         ← Zurück zu den Vorschlägen
       </button>
 
-      <div>
-        <h1 className="text-3xl font-bold text-gray-100">{suggestion.name}</h1>
-        <p className="text-gray-400 text-sm mt-1.5">
-          {typeLabel(suggestion.type)} · {suggestion.category}
-        </p>
+      <div className="flex items-start gap-4">
+        {suggestion.posterUrl && (
+          <img
+            src={suggestion.posterUrl}
+            alt={`Cover von ${suggestion.name}`}
+            className="w-24 sm:w-32 rounded-lg border border-gray-700 shrink-0 object-cover"
+          />
+        )}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-100">{suggestion.name}</h1>
+          <p className="text-gray-400 text-sm mt-1.5">
+            {typeLabel(suggestion.type)} · {suggestion.category}
+          </p>
+        </div>
       </div>
 
       <section className="bg-gray-800 border border-gray-700 rounded-xl p-4">
@@ -63,6 +75,22 @@ export function SuggestionDetailPage() {
         <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-line">
           {suggestion.description}
         </p>
+        {hasCastOrAwards && (
+          <dl className="grid gap-y-2 text-sm mt-4 pt-4 border-t border-gray-700">
+            {extra && extra.cast.length > 0 && (
+              <div>
+                <dt className="text-gray-500">Besetzung</dt>
+                <dd className="text-gray-200">{extra.cast.join(', ')}</dd>
+              </div>
+            )}
+            {extra && extra.awards.length > 0 && (
+              <div>
+                <dt className="text-gray-500">Auszeichnungen</dt>
+                <dd className="text-gray-200">{extra.awards.join(', ')}</dd>
+              </div>
+            )}
+          </dl>
+        )}
         <a
           href={trailerSearchUrl(suggestion.name)}
           target="_blank"
