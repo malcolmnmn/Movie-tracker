@@ -127,9 +127,14 @@ export function FriendDetailPage() {
       ) : (
         <>
           <TopTenList
-            titles={watched}
+            titles={watched.filter((t) => t.type === 'movie')}
             onSelect={selectFromTopTen}
-            heading={`${friend?.username}s Top 10`}
+            heading={`${friend?.username}s Top 10 Filme`}
+          />
+          <TopTenList
+            titles={watched.filter((t) => t.type === 'series')}
+            onSelect={selectFromTopTen}
+            heading={`${friend?.username}s Top 10 Serien`}
           />
           {renderSection('Bereits geschaut', watched)}
           {renderSection('Watchlist', toWatch)}

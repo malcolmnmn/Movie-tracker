@@ -43,8 +43,17 @@ export function WatchedPage() {
             linkTo={(t) => `/titles/${t.id}`}
             emptyMessage="Du hast noch nichts als geschaut markiert."
           />
-          <div className="mt-10 pt-8 border-t border-gray-800">
-            <TopTenList titles={titles} linkTo={(t) => `/titles/${t.id}`} heading="Deine Top 10" />
+          <div className="mt-10 pt-8 border-t border-gray-800 space-y-10">
+            <TopTenList
+              titles={titles.filter((t) => t.type === 'movie')}
+              linkTo={(t) => `/titles/${t.id}`}
+              heading="Deine Top 10 Filme"
+            />
+            <TopTenList
+              titles={titles.filter((t) => t.type === 'series')}
+              linkTo={(t) => `/titles/${t.id}`}
+              heading="Deine Top 10 Serien"
+            />
           </div>
         </>
       )}

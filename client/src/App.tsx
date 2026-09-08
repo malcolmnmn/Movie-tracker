@@ -9,6 +9,7 @@ import { TitleDetailPage } from './pages/TitleDetailPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { FriendDetailPage } from './pages/FriendDetailPage';
 import { SuggestionsPage } from './pages/SuggestionsPage';
+import { SuggestionDetailPage } from './pages/SuggestionDetailPage';
 
 export default function App() {
   return (
@@ -62,6 +63,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <SuggestionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/suggestions/:id"
+          element={
+            <ProtectedRoute>
+              <SuggestionDetailPage />
             </ProtectedRoute>
           }
         />

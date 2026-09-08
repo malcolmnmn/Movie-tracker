@@ -63,26 +63,52 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS suggested_titles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL CHECK (type IN ('movie', 'series')),
     category TEXT NOT NULL,
+    ai_description TEXT,
+    ai_source_url TEXT,
+    ai_fetched_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
 
-// Einmalig mit einer kuratierten Auswahl befüllen (siehe data/suggestedTitles.js),
-// falls die Tabelle noch leer ist – z. B. beim allerersten Start oder auf einer frisch
-// angelegten Datenbank.
-const suggestedCount = db.prepare('SELECT COUNT(*) AS n FROM suggested_titles').get().n;
-if (suggestedCount === 0) {
-  const insertSuggestion = db.prepare(
-    'INSERT INTO suggested_titles (name, type, category) VALUES (?, ?, ?)'
-  );
-  const seedSuggestions = db.transaction((items) => {
-    for (const item of items) insertSuggestion.run(item.name, item.type, item.category);
-  });
-  seedSuggestions(SUGGESTED_TITLES);
+for (const column of ['ai_description', 'ai_source_url', 'ai_fetched_at']) {
+  try {
+    db.exec(`ALTER TABLE suggested_titles ADD COLUMN ${column} TEXT`);
+  } catch (err) {
+    if (!/duplicate column/i.test(err.message)) throw err;
+  }
 }
+
+// Für Datenbanken, die die Tabelle schon vor Einführung der UNIQUE-Einschränkung auf
+// "name" angelegt haben (CREATE TABLE IF NOT EXISTS greift dann nicht mehr): den
+// eindeutigen Index nachträglich ergänzen, damit "ON CONFLICT(name)" unten funktioniert.
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_suggested_titles_name ON suggested_titles(name)');
+
+// Gleicht die Vorschlagsliste bei jedem Serverstart mit data/suggestedTitles.js ab,
+// statt sie nur einmalig zu befüllen: neu ergänzte Titel werden hinzugefügt, aus der
+// Liste entfernte Titel werden gelöscht (unproblematisch, da suggested_titles nur eine
+// Referenzliste ist und keine Nutzerdaten enthält). So reicht es, die Datei anzupassen,
+// um die angezeigten Vorschläge zu aktualisieren.
+const syncSuggestions = db.transaction((items) => {
+  const currentNames = new Set(items.map((i) => i.name));
+  const existingNames = db
+    .prepare('SELECT name FROM suggested_titles')
+    .all()
+    .map((r) => r.name);
+  for (const name of existingNames) {
+    if (!currentNames.has(name)) {
+      db.prepare('DELETE FROM suggested_titles WHERE name = ?').run(name);
+    }
+  }
+  const upsert = db.prepare(
+    `INSERT INTO suggested_titles (name, type, category) VALUES (?, ?, ?)
+     ON CONFLICT(name) DO UPDATE SET type = excluded.type, category = excluded.category`
+  );
+  for (const item of items) upsert.run(item.name, item.type, item.category);
+});
+syncSuggestions(SUGGESTED_TITLES);
 
 // Leichte Migration für bereits bestehende Datenbanken: SQLite kennt kein
 // "ADD COLUMN IF NOT EXISTS", daher hier einfach ausprobieren und einen

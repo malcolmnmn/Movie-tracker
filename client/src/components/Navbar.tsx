@@ -21,6 +21,9 @@ export function Navbar() {
     <nav className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 bg-gray-900 border-b border-gray-800 px-4 py-3">
       <div className="flex items-center gap-2">
         <span className="text-lg font-bold text-yellow-400 mr-2">🎬 Movie Tracker</span>
+        <NavLink to="/suggestions" className={linkClass}>
+          Film-Vorschlag
+        </NavLink>
         <NavLink to="/watchlist" className={linkClass}>
           Watchlist
         </NavLink>
@@ -29,9 +32,6 @@ export function Navbar() {
         </NavLink>
         <NavLink to="/friends" className={linkClass}>
           Freunde
-        </NavLink>
-        <NavLink to="/suggestions" className={linkClass}>
-          Film-Vorschlag
         </NavLink>
       </div>
       <div className="flex items-center gap-3 text-sm text-gray-300">

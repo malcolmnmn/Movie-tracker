@@ -57,6 +57,11 @@ export interface Suggestion {
   category: string;
 }
 
+export interface SuggestionDetail extends Suggestion {
+  description: string;
+  sourceUrl: string | null;
+}
+
 const TOKEN_KEY = 'movie-tracker-token';
 
 export function getToken(): string | null {
@@ -155,6 +160,8 @@ export const api = {
     request<{ friend: Friend; titles: Title[] }>(`/friends/${friendId}/titles`),
 
   listSuggestions: () => request<{ suggestions: Suggestion[] }>('/suggestions'),
+  getSuggestion: (id: number) =>
+    request<{ suggestion: SuggestionDetail }>(`/suggestions/${id}`),
 };
 
 export type RatingFieldKey =
